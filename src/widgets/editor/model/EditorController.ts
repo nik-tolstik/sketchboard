@@ -13,24 +13,22 @@ import {
   type ShapeElement,
   type TextElement,
   type Tool,
-} from "../domain/elements";
+} from "@/entities/scene";
 import {
+  cloneElementsAt,
   constrainToSquareDelta,
+  getElementAtPoint,
+  getElementsIntersectingRect,
   normalizeRect,
   screenToWorld,
   shouldAppendPoint,
+  translateElement,
   worldToScreen,
   type Rect,
-} from "../domain/geometry";
-import {
-  cloneElementsAt,
-  getElementAtPoint,
-  getElementsIntersectingRect,
-  translateElement,
-} from "../domain/selection";
-import type { SceneStore } from "../application/SceneStore";
-import type { LayerOrderCommand } from "../application/SceneStore";
-import type { CanvasRenderOptions } from "./CanvasRenderer";
+} from "@/entities/scene";
+import type { SceneStore } from "@/entities/scene";
+import type { LayerOrderCommand } from "@/entities/scene";
+import type { CanvasRenderOptions } from "../lib/CanvasRenderer";
 
 type RenderPreview = (options?: CanvasRenderOptions) => void;
 type TogglePanning = (isPanning: boolean) => void;
@@ -91,6 +89,19 @@ export class EditorController {
   ) {
     this.bind();
     this.canvas.dataset.tool = this.activeTool;
+  }
+
+  destroy(): void {
+    this.canvas.removeEventListener("pointerdown", this.handlePointerDown);
+    this.canvas.removeEventListener("pointermove", this.handlePointerMove);
+    this.canvas.removeEventListener("pointerup", this.handlePointerUp);
+    this.canvas.removeEventListener("pointercancel", this.handlePointerUp);
+    this.canvas.removeEventListener("dblclick", this.handleDoubleClick);
+    this.canvas.removeEventListener("contextmenu", this.handleContextMenu);
+
+    if (this.pointerId !== undefined) {
+      this.releasePointer(this.pointerId);
+    }
   }
 
   setTool(tool: Tool): void {
@@ -190,8 +201,12 @@ export class EditorController {
     this.canvas.addEventListener("pointerup", this.handlePointerUp);
     this.canvas.addEventListener("pointercancel", this.handlePointerUp);
     this.canvas.addEventListener("dblclick", this.handleDoubleClick);
-    this.canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+    this.canvas.addEventListener("contextmenu", this.handleContextMenu);
   }
+
+  private handleContextMenu = (event: MouseEvent): void => {
+    event.preventDefault();
+  };
 
   private handlePointerDown = (event: PointerEvent): void => {
     this.pointerId = event.pointerId;

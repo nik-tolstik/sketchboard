@@ -1,53 +1,74 @@
 # Architecture
 
-SketchBoard is a framework-free TypeScript whiteboard editor. The app is intentionally split into small layers so canvas behavior, persistence, and UI wiring can evolve independently.
+SketchBoard is a React + Vite TypeScript whiteboard editor organized with Feature-Sliced Design. The app is intentionally split into layers so canvas behavior, persistence, and UI wiring can evolve independently.
+
+The project follows the FSD import rule: a layer can import only from layers below it. We currently use `app`, `pages`, `widgets`, `entities`, and `shared`. The `features` layer is intentionally absent until a reusable user action becomes large enough to deserve its own slice.
 
 ## Runtime Flow
 
-1. `src/main.ts` builds the static DOM shell, wires toolbar controls, keyboard shortcuts, IndexedDB persistence, and the canvas controller.
-2. `EditorController` receives pointer and keyboard-driven commands, translates screen coordinates into world coordinates, and decides which domain operation should happen.
-3. `SceneStore` owns the current scene, undo/redo stacks, and autosave scheduling.
-4. `CanvasRenderer` draws the latest scene snapshot and transient UI overlays onto the `<canvas>`.
-5. `IndexedDbSceneRepository` persists the normalized scene into browser IndexedDB.
+1. `src/app/entrypoint/main.tsx` mounts the React app.
+2. `src/app/App.tsx` applies app-level providers and renders the board page.
+3. `src/pages/board` selects the editor widget for the current screen.
+4. `src/widgets/editor/ui/EditorWidget.tsx` renders the toolbar controls, color inputs, canvas stage, inline text editor, and layer controls.
+5. `src/widgets/editor/model/useEditorRuntime.ts` wires React refs/state to IndexedDB persistence, global keyboard shortcuts, the canvas renderer, and the editor controller.
+6. `EditorController` receives pointer and keyboard-driven commands, translates screen coordinates into world coordinates, and decides which entity operation should happen.
+7. `SceneStore` owns the current scene, undo/redo stacks, and autosave scheduling.
+8. `CanvasRenderer` draws the latest scene snapshot and transient UI overlays onto the `<canvas>`.
+9. `IndexedDbSceneRepository` persists the normalized scene into browser IndexedDB.
 
 ## Layers
 
-### Domain
+### App
 
-Files under `src/domain` define editor data and geometry helpers:
+`src/app` owns application bootstrap:
 
-- `elements.ts`: canonical element types, tools, styles, constructors, and scene types.
-- `geometry.ts`: coordinate conversion, rectangle normalization, arrow heads, distances, and shape constraints.
-- `selection.ts`: bounds, hit-testing, area selection, translation, cloning, and style application.
-- `scene.ts`: empty-scene creation and persisted-scene normalization/migration.
+- `entrypoint/main.tsx`: React root creation.
+- `App.tsx`: app-level composition.
+- `providers`: cross-app providers such as shadcn tooltip context.
+- `styles/index.css`: Tailwind, shadcn theme tokens, and global editor styles.
 
-Domain modules should not depend on DOM APIs. Keep them testable with Vitest.
+The app layer can import from any lower layer, but should stay thin.
 
-### Application
+### Pages
 
-`src/application/SceneStore.ts` is the state boundary:
+`src/pages/board` is the current route-level page. It composes widgets and should not contain editor behavior.
 
-- Holds the active `SceneSnapshot`.
-- Emits immutable snapshots to subscribers.
-- Persists changes with a small debounce.
-- Tracks undo/redo for element changes.
-- Does not put viewport panning into undo history.
+### Widgets
 
-Use `addElements`, `replaceElements`, `removeElements`, and `updateElementsStyle` for user-visible element changes so history remains coherent.
+`src/widgets/editor` contains the complete editor surface:
 
-### Infrastructure
+- `ui/EditorWidget.tsx`: shadcn/ui composition for toolbar, actions, canvas stage, and layer controls.
+- `ui/EditorIcon.tsx` and `ui/icons.ts`: editor-specific icon rendering and icon registry.
+- `model/useEditorRuntime.ts`: lifecycle glue between React refs/state and imperative editor classes.
+- `model/EditorController.ts`: tool state, pointer interactions, selection drag, copy/paste, text creation, panning, and export.
+- `lib/CanvasRenderer.ts`: imperative canvas drawing for grid, elements, previews, selection outlines, and selection boxes.
+- `config/editorConfig.ts`: toolbar and layer-control metadata.
 
-`src/infrastructure/indexedDbSceneRepository.ts` is the IndexedDB adapter. It stores one default scene record in the `sketchboard-db` database.
+Keep editor-specific runtime code here. Reusable scene data and mutations belong in `entities/scene`.
 
-### UI
+### Entities
 
-Files under `src/ui` are browser-facing:
+`src/entities/scene` defines editor data, persistence, and scene state:
 
-- `CanvasRenderer.ts`: imperative canvas drawing for grid, elements, previews, selection outlines, and selection boxes.
-- `EditorController.ts`: tool state, pointer interactions, selection drag, copy/paste, text creation, panning, and export.
-- `icons.ts`: inline SVG icon registry for toolbar buttons.
+- `model/elements.ts`: canonical element types, tools, styles, constructors, and scene types.
+- `model/geometry.ts`: coordinate conversion, rectangle normalization, arrow heads, distances, and shape constraints.
+- `model/selection.ts`: bounds, hit-testing, area selection, translation, cloning, and style application.
+- `model/scene.ts`: empty-scene creation and persisted-scene normalization/migration.
+- `model/SceneStore.ts`: active snapshot, undo/redo stacks, subscriptions, and autosave scheduling.
+- `api/indexedDbSceneRepository.ts`: IndexedDB adapter for the default scene record in `sketchboard-db`.
 
-`src/main.ts` is composition glue. Keep business rules out of it unless they are purely about DOM wiring.
+Entity model modules should not depend on React or DOM APIs. Keep them testable with Vitest.
+
+Use `SceneStore` methods such as `addElements`, `replaceElements`, `removeElements`, and `updateElementsStyle` for user-visible element changes so history remains coherent.
+
+### Shared
+
+`src/shared` contains infrastructure that is not specific to SketchBoard scene semantics:
+
+- `ui`: shadcn/ui primitives generated by the CLI.
+- `lib`: shared helpers such as `cn`.
+
+Shared code must not import from app, pages, widgets, features, or entities.
 
 ## Interaction Model
 
@@ -64,8 +85,7 @@ Files under `src/ui` are browser-facing:
 
 Unit tests live next to the code they exercise:
 
-- `*.test.ts` under `src/domain` cover geometry, scene migration, and selection logic.
-- `SceneStore.test.ts` covers state/history behavior.
+- `*.test.ts` under `src/entities/scene/model` cover geometry, scene migration, selection logic, and state/history behavior.
 
 Run:
 
@@ -75,5 +95,7 @@ pnpm build
 pnpm lint
 pnpm format:check
 ```
+
+Run `pnpm e2e` after changes that affect rendered UI, event wiring, persistence, or keyboard shortcuts.
 
 Rendered UI checks are done with temporary Playwright scripts outside the repository when needed.

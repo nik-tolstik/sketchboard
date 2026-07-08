@@ -1,5 +1,5 @@
-import type { SceneSnapshot } from "../domain/elements";
-import { createEmptyScene, normalizeScene } from "../domain/scene";
+import type { SceneSnapshot } from "../model/elements";
+import { createEmptyScene, normalizeScene } from "../model/scene";
 
 const DB_NAME = "sketchboard-db";
 const STORE_NAME = "scenes";

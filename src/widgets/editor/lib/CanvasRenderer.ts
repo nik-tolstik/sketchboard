@@ -6,9 +6,15 @@ import type {
   ShapeElement,
   TextElement,
   Viewport,
-} from "../domain/elements";
-import { getArrowHead, getDiamondPoints, normalizeRect, type Rect } from "../domain/geometry";
-import { getElementBounds, getElementsInLayerOrder } from "../domain/selection";
+} from "@/entities/scene";
+import {
+  getArrowHead,
+  getDiamondPoints,
+  getElementBounds,
+  getElementsInLayerOrder,
+  normalizeRect,
+  type Rect,
+} from "@/entities/scene";
 
 export type CanvasRenderOptions = {
   preview?: DrawingElement;

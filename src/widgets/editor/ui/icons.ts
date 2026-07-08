@@ -1,6 +1,6 @@
-import type { Tool } from "../domain/elements";
+import type { Tool } from "@/entities/scene";
 
-type IconName =
+export type IconName =
   Tool | "clear" | "export" | "layerBackward" | "layerForward" | "layerToBack" | "layerToFront";
 
 const icons: Record<IconName, string> = {

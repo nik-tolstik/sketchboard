@@ -1,7 +1,7 @@
-import type { DrawingElement, ElementStyle, SceneSnapshot, Viewport } from "../domain/elements";
-import { createEmptyScene } from "../domain/scene";
-import { applyElementStyle, getElementsInLayerOrder } from "../domain/selection";
-import type { IndexedDbSceneRepository } from "../infrastructure/indexedDbSceneRepository";
+import type { IndexedDbSceneRepository } from "../api/indexedDbSceneRepository";
+import type { DrawingElement, ElementStyle, SceneSnapshot, Viewport } from "./elements";
+import { createEmptyScene } from "./scene";
+import { applyElementStyle, getElementsInLayerOrder } from "./selection";
 
 type Listener = (scene: SceneSnapshot) => void;
 type SaveStateListener = (state: SaveState) => void;

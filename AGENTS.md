@@ -5,19 +5,21 @@
 - Use `pnpm` for all package-manager actions.
 - Use interactive `zsh` for shell commands.
 - Write code comments in English.
-- Keep the app framework-free: HTML, CSS, TypeScript, Vite, Vitest, ESLint, and Prettier.
-- Do not add React, Angular, Vue, or similar UI frameworks.
-- Prefer small domain helpers and tests over adding UI-specific logic directly to `main.ts`.
+- Keep the app on React + Vite with TypeScript, shadcn/ui, Tailwind CSS, Vitest, ESLint, and Prettier.
+- Do not add Angular, Vue, or another UI framework unless explicitly requested.
+- Prefer small domain helpers and tests over adding editor behavior directly to React components.
 
 ## Architecture Pointers
 
 - Read `docs/ARCHITECTURE.md` before changing editor behavior.
-- Domain logic belongs in `src/domain`.
-- State/history/autosave belongs in `src/application/SceneStore.ts`.
-- IndexedDB details belong in `src/infrastructure/indexedDbSceneRepository.ts`.
-- Canvas drawing belongs in `src/ui/CanvasRenderer.ts`.
-- Pointer/tool behavior belongs in `src/ui/EditorController.ts`.
-- DOM composition and global keyboard wiring belong in `src/main.ts`.
+- Use Feature-Sliced Design layers: `app`, `pages`, `widgets`, `features` when needed, `entities`, and `shared`.
+- Higher layers may import only lower layers; avoid imports from sibling or higher layers.
+- Keep public slice APIs in `index.ts` files and prefer importing through them.
+- App entry, providers, and global styles belong in `src/app`.
+- Route-level page composition belongs in `src/pages/board`.
+- Editor shell, canvas runtime, renderer, controller, icons, and editor config belong in `src/widgets/editor`.
+- Scene domain logic, state/history/autosave, and IndexedDB persistence belong in `src/entities/scene`.
+- shadcn/ui components belong in `src/shared/ui`; shared helpers belong in `src/shared/lib`.
 
 ## Workflow
 
@@ -39,5 +41,5 @@ pnpm format:check
 - Element mutations should go through `SceneStore` methods so undo/redo remains correct.
 - Viewport panning should not create undo history entries.
 - Selection state is UI-only and should not be persisted.
-- Browser persistence is IndexedDB; keep persisted scene data normalized through `src/domain/scene.ts`.
+- Browser persistence is IndexedDB; keep persisted scene data normalized through `src/entities/scene/model/scene.ts`.
 - Temporary QA scripts and screenshots should stay outside the repository unless explicitly requested.

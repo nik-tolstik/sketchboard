@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createTextElement, type SceneSnapshot } from "../domain/elements";
-import { createEmptyScene } from "../domain/scene";
+import { createTextElement, type SceneSnapshot } from "./elements";
+import { createEmptyScene } from "./scene";
 import { SceneStore } from "./SceneStore";
 
 const createRepository = (initialScene: SceneSnapshot = createEmptyScene()) => {
