@@ -1,9 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 
+type PersistedPoint = {
+  x?: number;
+  y?: number;
+};
+
 type PersistedElement = {
   type?: string;
   text?: string;
   layer?: number;
+  points?: PersistedPoint[];
 };
 
 type PersistedScene = {
@@ -58,6 +64,13 @@ const readPersistedLayers = async (page: Page): Promise<number[]> => {
   const elements = await readPersistedElements(page);
 
   return elements.map((element) => element.layer ?? -1);
+};
+
+const expectActiveTool = async (page: Page, tool: string): Promise<void> => {
+  await expect(page.locator(`.editor-tool-button[data-tool="${tool}"]`)).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 };
 
 const countDarkCanvasPixels = async (page: Page, region: CanvasRegion): Promise<number> =>
@@ -136,6 +149,7 @@ test("edits canvas text on double click", async ({ page }) => {
   await textEditor.press("Control+Enter");
 
   await expect.poll(() => readPersistedTexts(page)).toEqual(["Original note"]);
+  await expectActiveTool(page, "select");
   const textRegion = { x: textPoint.x, y: textPoint.y, width: 180, height: 42 };
   const renderedTextPixels = await countDarkCanvasPixels(page, textRegion);
 
@@ -191,6 +205,7 @@ test("selects through unfilled rectangle interiors and respects filled ones", as
   await page.getByRole("button", { name: "Square" }).click();
   await dragCanvas(page, { x: 280, y: 220 }, { x: 560, y: 360 });
   await expect.poll(() => readPersistedElements(page)).toHaveLength(2);
+  await expectActiveTool(page, "select");
 
   await page.getByRole("button", { name: "Select" }).click();
   await canvas.click({ position: { x: textPoint.x + 8, y: textPoint.y + 8 } });
@@ -213,6 +228,7 @@ test("selects through unfilled rectangle interiors and respects filled ones", as
   await page.getByRole("button", { name: "Square" }).click();
   await dragCanvas(page, { x: 280, y: 220 }, { x: 560, y: 360 });
   await expect.poll(() => readPersistedElements(page)).toHaveLength(2);
+  await expectActiveTool(page, "select");
 
   await page.getByRole("button", { name: "Select" }).click();
   await canvas.click({ position: { x: textPoint.x + 8, y: textPoint.y + 8 } });
@@ -220,6 +236,85 @@ test("selects through unfilled rectangle interiors and respects filled ones", as
 
   await expect.poll(() => readPersistedTexts(page)).toEqual(["Covered label"]);
   await expect.poll(() => readPersistedElements(page)).toMatchObject([{ type: "text" }]);
+});
+
+test("bends arrows by dragging their middle point", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  const canvas = page.locator("[data-canvas]");
+
+  await page.getByRole("button", { name: "Arrow" }).click();
+  await dragCanvas(page, { x: 300, y: 260 }, { x: 500, y: 260 });
+  await expect
+    .poll(() => readPersistedElements(page))
+    .toMatchObject([
+      {
+        type: "arrow",
+        points: [
+          { x: 300, y: 260 },
+          { x: 400, y: 260 },
+          { x: 500, y: 260 },
+        ],
+      },
+    ]);
+  await expectActiveTool(page, "select");
+
+  await page.getByRole("button", { name: "Select" }).click();
+  await canvas.click({ position: { x: 400, y: 260 } });
+  await dragCanvas(page, { x: 400, y: 260 }, { x: 400, y: 180 });
+
+  await expect
+    .poll(() => readPersistedElements(page))
+    .toMatchObject([
+      {
+        type: "arrow",
+        points: [
+          { x: 300, y: 260 },
+          { x: 400, y: 180 },
+          { x: 500, y: 260 },
+        ],
+      },
+    ]);
+  await expect
+    .poll(() => countDarkCanvasPixels(page, { x: 388, y: 168, width: 24, height: 24 }))
+    .toBeGreaterThan(8);
+});
+
+test("places multi-point arrows with clicks and finishes on the last point", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  const canvas = page.locator("[data-canvas]");
+
+  await page.getByRole("button", { name: "Arrow" }).click();
+  await canvas.click({ position: { x: 280, y: 260 } });
+  await canvas.click({ position: { x: 340, y: 200 } });
+  await canvas.click({ position: { x: 420, y: 250 } });
+  await canvas.click({ position: { x: 500, y: 210 } });
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+  await canvas.click({ position: { x: 500, y: 210 } });
+
+  await expect
+    .poll(() => readPersistedElements(page))
+    .toMatchObject([
+      {
+        type: "arrow",
+        points: [
+          { x: 280, y: 260 },
+          { x: 340, y: 200 },
+          { x: 420, y: 250 },
+          { x: 500, y: 210 },
+        ],
+      },
+    ]);
+  await expectActiveTool(page, "select");
 });
 
 test("moves selected elements with the bottom layer panel", async ({ page }) => {
@@ -243,6 +338,7 @@ test("moves selected elements with the bottom layer panel", async ({ page }) => 
   await page.getByRole("button", { name: "Square" }).click();
   await dragCanvas(page, { x: 280, y: 220 }, { x: 560, y: 360 });
   await expect.poll(() => readPersistedLayers(page)).toEqual([0, 1]);
+  await expectActiveTool(page, "select");
 
   await page.getByRole("button", { name: "Select" }).click();
   await canvas.click({ position: { x: textPoint.x + 8, y: textPoint.y + 8 } });

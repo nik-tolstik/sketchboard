@@ -156,6 +156,7 @@ export function useEditorRuntime() {
       },
       openTextEditor,
       updateSelectionState,
+      setActiveTool,
     );
 
     controllerRef.current = controller;
@@ -242,7 +243,6 @@ export function useEditorRuntime() {
       }
 
       currentController.setTool(nextTool.id);
-      setActiveTool(nextTool.id);
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -263,7 +263,6 @@ export function useEditorRuntime() {
   }, []);
 
   const setTool = useCallback((tool: Tool): void => {
-    setActiveTool(tool);
     controllerRef.current?.setTool(tool);
   }, []);
 

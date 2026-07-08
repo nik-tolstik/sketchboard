@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createTextElement, getTextElementWidth, updateTextElementText } from "./elements";
+import {
+  createArrowElement,
+  createTextElement,
+  getTextElementWidth,
+  updateTextElementText,
+} from "./elements";
 
 describe("elements", () => {
   it("updates text content while preserving element identity", () => {
@@ -16,5 +21,21 @@ describe("elements", () => {
 
   it("estimates multiline text width from the longest line", () => {
     expect(getTextElementWidth("short\nlonger line")).toBe(getTextElementWidth("longer line"));
+  });
+
+  it("creates arrows with draggable points", () => {
+    const arrow = createArrowElement([
+      { x: 10, y: 20 },
+      { x: 30, y: 30 },
+      { x: 50, y: 40 },
+      { x: 70, y: 35 },
+    ]);
+
+    expect(arrow.points).toEqual([
+      { x: 10, y: 20 },
+      { x: 30, y: 30 },
+      { x: 50, y: 40 },
+      { x: 70, y: 35 },
+    ]);
   });
 });

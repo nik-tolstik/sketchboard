@@ -59,4 +59,53 @@ describe("scene", () => {
 
     expect(scene.elements.map((element) => element.layer)).toEqual([0, 8, 9]);
   });
+
+  it("migrates old persisted arrows to points", () => {
+    const scene = normalizeScene({
+      version: 1,
+      elements: [
+        {
+          id: "1",
+          type: "arrow",
+          start: { x: 10, y: 20 },
+          end: { x: 50, y: 60 },
+        },
+      ] as never,
+      viewport: DEFAULT_VIEWPORT,
+      updatedAt: Date.now(),
+    });
+    const [arrow] = scene.elements;
+
+    expect(arrow?.type).toBe("arrow");
+    expect(arrow?.type === "arrow" ? arrow.points : undefined).toEqual([
+      { x: 10, y: 20 },
+      { x: 30, y: 40 },
+      { x: 50, y: 60 },
+    ]);
+  });
+
+  it("keeps persisted arrows at the minimum of three points", () => {
+    const scene = normalizeScene({
+      version: 1,
+      elements: [
+        {
+          id: "1",
+          type: "arrow",
+          points: [
+            { x: 10, y: 20 },
+            { x: 50, y: 60 },
+          ],
+        },
+      ] as never,
+      viewport: DEFAULT_VIEWPORT,
+      updatedAt: Date.now(),
+    });
+    const [arrow] = scene.elements;
+
+    expect(arrow?.type === "arrow" ? arrow.points : undefined).toEqual([
+      { x: 10, y: 20 },
+      { x: 30, y: 40 },
+      { x: 50, y: 60 },
+    ]);
+  });
 });

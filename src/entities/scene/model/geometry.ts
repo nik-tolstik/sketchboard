@@ -81,6 +81,24 @@ export const getDiamondPoints = (rect: Rect): Point[] => {
   ];
 };
 
+export const getArrowHeadSegment = (points: Point[]): [Point, Point] | undefined => {
+  const end = points.at(-1);
+
+  if (!end) {
+    return undefined;
+  }
+
+  for (let index = points.length - 2; index >= 0; index -= 1) {
+    const start = points[index];
+
+    if (start && distance(start, end) > 0.001) {
+      return [start, end];
+    }
+  }
+
+  return undefined;
+};
+
 export const getArrowHead = (
   start: Point,
   end: Point,

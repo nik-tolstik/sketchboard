@@ -51,8 +51,7 @@ export type ShapeElement = BaseElement & {
 
 export type ArrowElement = BaseElement & {
   type: "arrow";
-  start: Point;
-  end: Point;
+  points: Point[];
 };
 
 export type DrawingElement = BrushElement | TextElement | ShapeElement | ArrowElement;
@@ -78,6 +77,7 @@ export const DEFAULT_VIEWPORT: Viewport = {
 };
 
 export const DEFAULT_LAYER = 0;
+export const MIN_ARROW_POINTS = 3;
 
 const MIN_TEXT_WIDTH = 120;
 const TEXT_WIDTH_RATIO = 14 / 24;
@@ -138,6 +138,18 @@ export const updateTextElementText = (element: TextElement, text: string): TextE
   updatedAt: now(),
 });
 
+export const updateArrowPoint = (
+  element: ArrowElement,
+  pointIndex: number,
+  point: Point,
+): ArrowElement => ({
+  ...element,
+  points: element.points.map((currentPoint, index) =>
+    index === pointIndex ? point : currentPoint,
+  ),
+  updatedAt: now(),
+});
+
 export const createShapeElement = (
   type: ShapeElement["type"],
   origin: Point,
@@ -160,19 +172,14 @@ export const createShapeElement = (
   };
 };
 
-export const createArrowElement = (
-  origin: Point,
-  target: Point,
-  layer = DEFAULT_LAYER,
-): ArrowElement => {
+export const createArrowElement = (points: Point[], layer = DEFAULT_LAYER): ArrowElement => {
   const timestamp = now();
 
   return {
     id: createElementId(),
     type: "arrow",
     layer,
-    start: origin,
-    end: target,
+    points: points.map((point) => ({ ...point })),
     createdAt: timestamp,
     updatedAt: timestamp,
     style: { ...DEFAULT_STYLE, lineWidth: 2.2 },

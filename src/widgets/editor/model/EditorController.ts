@@ -1,9 +1,11 @@
 import {
   DEFAULT_STYLE,
+  MIN_ARROW_POINTS,
   createArrowElement,
   createBrushElement,
   createShapeElement,
   createTextElement,
+  updateArrowPoint,
   updateTextElementText,
   type ArrowElement,
   type BrushElement,
@@ -17,7 +19,9 @@ import {
 import {
   cloneElementsAt,
   constrainToSquareDelta,
+  distance,
   getElementAtPoint,
+  getElementsInLayerOrder,
   getElementsIntersectingRect,
   normalizeRect,
   screenToWorld,
@@ -33,6 +37,7 @@ import type { CanvasRenderOptions } from "../lib/CanvasRenderer";
 type RenderPreview = (options?: CanvasRenderOptions) => void;
 type TogglePanning = (isPanning: boolean) => void;
 type SelectionChangeListener = () => void;
+type ToolChangeListener = (tool: Tool) => void;
 type TextEditorOptions = {
   initialText?: string;
   fontSize?: number;
@@ -56,6 +61,20 @@ type MoveDrag = {
   dragged: boolean;
 };
 
+type ArrowPointDrag = {
+  pointIndex: number;
+  baseElement: ArrowElement;
+  current: Point;
+  dragged: boolean;
+};
+
+type ArrowCreateDrag = {
+  origin: Point;
+  current: Point;
+  canDragCreate: boolean;
+  dragged: boolean;
+};
+
 const MIN_SHAPE_SIZE = 6;
 const MIN_SELECTION_DRAG_DISTANCE = 4;
 const MIDDLE_MOUSE_BUTTON = 1;
@@ -71,6 +90,9 @@ export class EditorController {
   private isPanning = false;
   private selectionDrag: SelectionDrag | undefined;
   private moveDrag: MoveDrag | undefined;
+  private arrowPointDrag: ArrowPointDrag | undefined;
+  private arrowCreateDrag: ArrowCreateDrag | undefined;
+  private arrowDraftPoints: Point[] | undefined;
   private selectedElementIds = new Set<string>();
   private editingTextElementId: string | undefined;
   private clipboard: DrawingElement[] = [];
@@ -86,6 +108,7 @@ export class EditorController {
     private readonly togglePanning: TogglePanning,
     private readonly openTextEditor: (screenPoint: Point, options: TextEditorOptions) => void,
     private readonly onSelectionChange: SelectionChangeListener = () => {},
+    private readonly onToolChange: ToolChangeListener = () => {},
   ) {
     this.bind();
     this.canvas.dataset.tool = this.activeTool;
@@ -105,8 +128,18 @@ export class EditorController {
   }
 
   setTool(tool: Tool): void {
+    if (tool !== "arrow") {
+      this.cancelArrowDraft();
+    }
+
+    if (this.activeTool === tool) {
+      this.renderSelection();
+      return;
+    }
+
     this.activeTool = tool;
     this.canvas.dataset.tool = tool;
+    this.onToolChange(tool);
     this.renderSelection();
   }
 
@@ -233,7 +266,7 @@ export class EditorController {
             const element = this.applyCurrentStyle(createTextElement(worldPoint, trimmedText));
             this.store.addElement(element);
             this.selectedElementIds = new Set([element.id]);
-            this.renderSelection();
+            this.switchToSelectAfterElementCreation();
           }
         },
       });
@@ -245,6 +278,11 @@ export class EditorController {
       return;
     }
 
+    if (this.activeTool === "arrow") {
+      this.startArrowCreateInteraction(worldPoint);
+      return;
+    }
+
     this.clearSelection();
     this.draft = this.createDraft(worldPoint);
     this.renderCurrent({ preview: this.draft });
@@ -253,12 +291,30 @@ export class EditorController {
   private handlePointerMove = (event: PointerEvent): void => {
     const worldPoint = this.getWorldPoint(event);
 
+    if (this.pointerId === undefined) {
+      if (this.arrowDraftPoints) {
+        this.updateArrowDraftPreview(worldPoint);
+      }
+
+      return;
+    }
+
     if (this.pointerId !== event.pointerId) {
       return;
     }
 
     if (this.isPanning) {
       this.updatePan(event);
+      return;
+    }
+
+    if (this.arrowCreateDrag) {
+      this.updateArrowCreateInteraction(worldPoint);
+      return;
+    }
+
+    if (this.arrowPointDrag) {
+      this.updateArrowPointDrag(worldPoint);
       return;
     }
 
@@ -290,6 +346,11 @@ export class EditorController {
       return;
     }
 
+    if (this.arrowPointDrag) {
+      this.endArrowPointDrag(event);
+      return;
+    }
+
     if (this.moveDrag) {
       this.endMove(event);
       return;
@@ -300,13 +361,31 @@ export class EditorController {
       return;
     }
 
-    if (this.draft && this.isDrawableDraft(this.draft)) {
-      this.store.addElement(this.draft);
+    if (this.arrowCreateDrag) {
+      this.endArrowCreateInteraction(event);
+      return;
+    }
+
+    const createdElement =
+      this.draft && this.isDrawableDraft(this.draft) ? structuredClone(this.draft) : undefined;
+
+    if (createdElement) {
+      this.store.addElement(createdElement);
     }
 
     this.draft = undefined;
     this.pointerId = undefined;
     this.releasePointer(event.pointerId);
+
+    if (
+      createdElement?.type === "square" ||
+      createdElement?.type === "diamond" ||
+      createdElement?.type === "circle"
+    ) {
+      this.switchToSelectAfterElementCreation();
+      return;
+    }
+
     this.renderSelection();
   };
 
@@ -326,6 +405,9 @@ export class EditorController {
     this.draft = undefined;
     this.selectionDrag = undefined;
     this.moveDrag = undefined;
+    this.arrowPointDrag = undefined;
+    this.arrowCreateDrag = undefined;
+    this.arrowDraftPoints = undefined;
     this.pointerId = undefined;
     this.selectedElementIds = new Set([textElement.id]);
     this.renderSelection();
@@ -348,10 +430,6 @@ export class EditorController {
       return this.applyCurrentStyle(createBrushElement(point));
     }
 
-    if (tool === "arrow") {
-      return this.applyCurrentStyle(createArrowElement(point, point));
-    }
-
     if (tool === "square" || tool === "diamond" || tool === "circle") {
       return this.applyCurrentStyle(createShapeElement(tool, point, point));
     }
@@ -362,14 +440,6 @@ export class EditorController {
   private updateDraft(draft: DrawingElement, point: Point): DrawingElement {
     if (draft.type === "brush") {
       return this.updateBrush(draft, point);
-    }
-
-    if (draft.type === "arrow") {
-      return {
-        ...draft,
-        end: point,
-        updatedAt: Date.now(),
-      } satisfies ArrowElement;
     }
 
     if (draft.type === "square" || draft.type === "diamond" || draft.type === "circle") {
@@ -403,12 +473,242 @@ export class EditorController {
     };
   }
 
+  private startArrowCreateInteraction(point: Point): void {
+    this.clearSelection();
+    this.arrowCreateDrag = {
+      origin: point,
+      current: point,
+      canDragCreate: this.arrowDraftPoints === undefined,
+      dragged: false,
+    };
+    this.setArrowDraftPreview(
+      this.arrowDraftPoints ? [...this.arrowDraftPoints, point] : [point, point],
+    );
+  }
+
+  private updateArrowCreateInteraction(point: Point): void {
+    if (!this.arrowCreateDrag) {
+      return;
+    }
+
+    this.arrowCreateDrag.current = point;
+
+    if (this.arrowCreateDrag.canDragCreate) {
+      this.arrowCreateDrag.dragged =
+        this.arrowCreateDrag.dragged ||
+        distance(point, this.arrowCreateDrag.origin) >= MIN_SELECTION_DRAG_DISTANCE;
+
+      if (this.arrowCreateDrag.dragged) {
+        this.setArrowDraftPreview(
+          this.getDragCreateArrowPoints(this.arrowCreateDrag.origin, point),
+        );
+        return;
+      }
+    }
+
+    if (this.arrowDraftPoints) {
+      this.updateArrowDraftPreview(point);
+    }
+  }
+
+  private endArrowCreateInteraction(event: PointerEvent): void {
+    const arrowCreateDrag = this.arrowCreateDrag;
+
+    if (!arrowCreateDrag) {
+      return;
+    }
+
+    this.arrowCreateDrag = undefined;
+
+    if (arrowCreateDrag.dragged && arrowCreateDrag.canDragCreate) {
+      const didCommit = this.commitArrowPoints(
+        this.getDragCreateArrowPoints(arrowCreateDrag.origin, arrowCreateDrag.current),
+      );
+
+      if (!didCommit) {
+        this.cancelArrowDraft();
+        this.renderSelection();
+      }
+    } else {
+      this.handleArrowClick(arrowCreateDrag.current);
+    }
+
+    this.pointerId = undefined;
+    this.releasePointer(event.pointerId);
+  }
+
+  private handleArrowClick(point: Point): void {
+    const confirmedPoints = this.arrowDraftPoints;
+
+    if (!confirmedPoints) {
+      this.arrowDraftPoints = [point];
+      this.updateArrowDraftPreview(point);
+      return;
+    }
+
+    const lastPoint = confirmedPoints.at(-1);
+    const finishTolerance = 8 / this.store.getSnapshot().viewport.zoom;
+
+    if (
+      lastPoint &&
+      confirmedPoints.length >= MIN_ARROW_POINTS &&
+      distance(point, lastPoint) <= finishTolerance
+    ) {
+      this.commitArrowPoints(confirmedPoints);
+      return;
+    }
+
+    if (lastPoint && distance(point, lastPoint) < 2 / this.store.getSnapshot().viewport.zoom) {
+      this.updateArrowDraftPreview(point);
+      return;
+    }
+
+    this.arrowDraftPoints = [...confirmedPoints, point];
+    this.updateArrowDraftPreview(point);
+  }
+
+  private updateArrowDraftPreview(point: Point): void {
+    if (!this.arrowDraftPoints) {
+      return;
+    }
+
+    this.setArrowDraftPreview([...this.arrowDraftPoints, point]);
+  }
+
+  private setArrowDraftPreview(points: Point[]): void {
+    const nextPoints = points.map((point) => ({ ...point }));
+
+    if (this.draft?.type === "arrow") {
+      this.draft = {
+        ...this.draft,
+        points: nextPoints,
+        updatedAt: Date.now(),
+      } satisfies ArrowElement;
+    } else {
+      this.draft = this.applyCurrentStyle(createArrowElement(nextPoints));
+    }
+
+    this.renderCurrent({ preview: this.draft });
+  }
+
+  private commitArrowPoints(points: Point[]): boolean {
+    if (!this.isDrawableArrowPoints(points)) {
+      return false;
+    }
+
+    const element = this.applyCurrentStyle(createArrowElement(points));
+    this.store.addElement(element);
+    this.selectedElementIds = new Set([element.id]);
+    this.cancelArrowDraft();
+    this.switchToSelectAfterElementCreation();
+
+    return true;
+  }
+
+  private cancelArrowDraft(): void {
+    if (this.draft?.type === "arrow") {
+      this.draft = undefined;
+    }
+
+    this.arrowCreateDrag = undefined;
+    this.arrowDraftPoints = undefined;
+  }
+
+  private getDragCreateArrowPoints(origin: Point, target: Point): Point[] {
+    return [
+      origin,
+      {
+        x: (origin.x + target.x) / 2,
+        y: (origin.y + target.y) / 2,
+      },
+      target,
+    ];
+  }
+
+  private isDrawableArrowPoints(points: Point[]): boolean {
+    if (points.length < MIN_ARROW_POINTS) {
+      return false;
+    }
+
+    let totalLength = 0;
+
+    for (let index = 1; index < points.length; index += 1) {
+      const previous = points[index - 1];
+      const current = points[index];
+
+      if (previous && current) {
+        totalLength += distance(previous, current);
+      }
+    }
+
+    return totalLength >= MIN_SHAPE_SIZE;
+  }
+
+  private switchToSelectAfterElementCreation(): void {
+    this.setTool("select");
+  }
+
   private startSelectInteraction(event: PointerEvent, point: Point): void {
+    if (!event.shiftKey && this.startArrowPointDragIfPossible(point)) {
+      return;
+    }
+
     if (!event.shiftKey && this.startMoveIfPossible(point)) {
       return;
     }
 
     this.startSelection(event, point);
+  }
+
+  private startArrowPointDragIfPossible(point: Point): boolean {
+    const snapshot = this.store.getSnapshot();
+    const tolerance = 8 / snapshot.viewport.zoom;
+    const selectedArrows = getElementsInLayerOrder(snapshot.elements).filter(
+      (element): element is ArrowElement =>
+        element.type === "arrow" && this.selectedElementIds.has(element.id),
+    );
+
+    for (let index = selectedArrows.length - 1; index >= 0; index -= 1) {
+      const arrow = selectedArrows[index];
+
+      if (!arrow) {
+        continue;
+      }
+
+      const pointIndex = this.getArrowPointIndexAt(arrow, point, tolerance);
+
+      if (pointIndex === undefined) {
+        continue;
+      }
+
+      this.arrowPointDrag = {
+        pointIndex,
+        baseElement: arrow,
+        current: point,
+        dragged: false,
+      };
+      this.renderSelection();
+
+      return true;
+    }
+
+    return false;
+  }
+
+  private getArrowPointIndexAt(
+    element: ArrowElement,
+    point: Point,
+    tolerance: number,
+  ): number | undefined {
+    const hits = element.points
+      .map((candidate, pointIndex) => ({
+        pointIndex,
+        distance: distance(candidate, point),
+      }))
+      .filter((hit) => hit.distance <= tolerance)
+      .sort((first, second) => first.distance - second.distance);
+
+    return hits[0]?.pointIndex;
   }
 
   private startMoveIfPossible(point: Point): boolean {
@@ -471,6 +771,51 @@ export class EditorController {
       hiddenElementIds: this.selectedElementIds,
       previews: this.getMovedElements(this.moveDrag),
     });
+  }
+
+  private updateArrowPointDrag(point: Point): void {
+    if (!this.arrowPointDrag) {
+      return;
+    }
+
+    const basePoint = this.arrowPointDrag.baseElement.points[this.arrowPointDrag.pointIndex];
+
+    if (!basePoint) {
+      return;
+    }
+
+    this.arrowPointDrag.current = point;
+    this.arrowPointDrag.dragged =
+      this.arrowPointDrag.dragged || distance(point, basePoint) >= MIN_SELECTION_DRAG_DISTANCE;
+
+    if (!this.arrowPointDrag.dragged) {
+      return;
+    }
+
+    const preview = this.getDraggedArrowPointElement(this.arrowPointDrag);
+
+    this.renderCurrent({
+      hiddenElementIds: new Set([preview.id]),
+      preview,
+    });
+  }
+
+  private endArrowPointDrag(event: PointerEvent): void {
+    const arrowPointDrag = this.arrowPointDrag;
+
+    if (!arrowPointDrag) {
+      return;
+    }
+
+    if (arrowPointDrag.dragged) {
+      this.store.replaceElement(this.getDraggedArrowPointElement(arrowPointDrag));
+    } else {
+      this.renderSelection();
+    }
+
+    this.arrowPointDrag = undefined;
+    this.pointerId = undefined;
+    this.releasePointer(event.pointerId);
   }
 
   private endMove(event: PointerEvent): void {
@@ -668,6 +1013,14 @@ export class EditorController {
     );
   }
 
+  private getDraggedArrowPointElement(arrowPointDrag: ArrowPointDrag): ArrowElement {
+    return updateArrowPoint(
+      arrowPointDrag.baseElement,
+      arrowPointDrag.pointIndex,
+      arrowPointDrag.current,
+    );
+  }
+
   private getSelectedElements(): DrawingElement[] {
     const selectedIds = this.selectedElementIds;
 
@@ -706,7 +1059,7 @@ export class EditorController {
     }
 
     if (draft.type === "arrow") {
-      return Math.hypot(draft.end.x - draft.start.x, draft.end.y - draft.start.y) >= MIN_SHAPE_SIZE;
+      return this.isDrawableArrowPoints(draft.points);
     }
 
     if (draft.type === "text") {

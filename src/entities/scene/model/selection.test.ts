@@ -54,13 +54,41 @@ describe("selection", () => {
 
   it("selects elements that intersect an area", () => {
     const square = createShapeElement("square", { x: 0, y: 0 }, { x: 80, y: 80 });
-    const arrow = createArrowElement({ x: 160, y: 160 }, { x: 260, y: 160 });
+    const arrow = createArrowElement([
+      { x: 160, y: 160 },
+      { x: 210, y: 160 },
+      { x: 260, y: 160 },
+    ]);
 
     expect(
       getElementsIntersectingRect([square, arrow], { x: -10, y: -10, width: 120, height: 120 }).map(
         (element) => element.id,
       ),
     ).toEqual([square.id]);
+  });
+
+  it("hit-tests multi-point arrows through their line segments", () => {
+    const arrow = createArrowElement([
+      { x: 0, y: 0 },
+      { x: 50, y: 50 },
+      { x: 100, y: 0 },
+      { x: 140, y: 40 },
+    ]);
+
+    expect(getElementAtPoint([arrow], { x: 50, y: 50 }, 4)?.id).toBe(arrow.id);
+    expect(getElementAtPoint([arrow], { x: 50, y: 0 }, 4)).toBeUndefined();
+  });
+
+  it("includes arrow points in bounds and clones", () => {
+    const arrow = createArrowElement([
+      { x: 0, y: 0 },
+      { x: 50, y: 50 },
+      { x: 100, y: 0 },
+    ]);
+    const [clone] = cloneElementsAt([arrow], { x: 10, y: 20 });
+
+    expect(getElementBounds(arrow).height).toBeGreaterThanOrEqual(50);
+    expect(clone?.type === "arrow" ? clone.points[1] : undefined).toEqual({ x: 60, y: 70 });
   });
 
   it("clones selected elements to the target cursor position", () => {

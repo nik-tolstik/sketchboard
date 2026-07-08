@@ -12,6 +12,7 @@ import {
   distance,
   distanceToSegment,
   getArrowHead,
+  getArrowHeadSegment,
   getDiamondPoints,
   normalizeRect,
   type Rect,
@@ -42,11 +43,10 @@ export const getElementBounds = (element: DrawingElement): Rect => {
   }
 
   if (element.type === "arrow") {
-    return getPointsBounds([
-      element.start,
-      element.end,
-      ...getArrowHead(element.start, element.end),
-    ]);
+    const arrowHeadSegment = getArrowHeadSegment(element.points);
+    const arrowHead = arrowHeadSegment ? getArrowHead(...arrowHeadSegment) : [];
+
+    return getPointsBounds([...element.points, ...arrowHead]);
   }
 
   return normalizeRect(element);
@@ -147,8 +147,7 @@ export const translateElement = (element: DrawingElement, delta: Point): Drawing
   if (element.type === "arrow") {
     return {
       ...element,
-      start: translatePoint(element.start, delta),
-      end: translatePoint(element.end, delta),
+      points: element.points.map((point) => translatePoint(point, delta)),
       updatedAt: timestamp,
     } satisfies ArrowElement;
   }
@@ -268,12 +267,14 @@ const isPolylineHit = (points: Point[], point: Point, tolerance: number): boolea
 };
 
 const isArrowHit = (element: ArrowElement, point: Point, tolerance: number): boolean => {
-  const arrowHead = getArrowHead(element.start, element.end);
+  const arrowHeadSegment = getArrowHeadSegment(element.points);
+  const arrowHead = arrowHeadSegment ? getArrowHead(...arrowHeadSegment) : [];
+  const [, arrowEnd] = arrowHeadSegment ?? [];
 
   return (
-    distanceToSegment(point, element.start, element.end) <= tolerance ||
+    isPolylineHit(element.points, point, tolerance) ||
     isPolylineHit(
-      [arrowHead[0], element.end, arrowHead[1]].filter((candidate): candidate is Point =>
+      [arrowHead[0], arrowEnd, arrowHead[1]].filter((candidate): candidate is Point =>
         Boolean(candidate),
       ),
       point,

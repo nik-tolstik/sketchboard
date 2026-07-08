@@ -9,6 +9,7 @@ import type {
 } from "@/entities/scene";
 import {
   getArrowHead,
+  getArrowHeadSegment,
   getDiamondPoints,
   getElementBounds,
   getElementsInLayerOrder,
@@ -86,7 +87,7 @@ export class CanvasRenderer {
     }
 
     if (options.selectedElementIds && options.selectedElementIds.size > 0) {
-      this.drawSelectedElements(renderedElements, options.selectedElementIds);
+      this.drawSelectedElements(renderedElements, options.selectedElementIds, scene.viewport.zoom);
     }
 
     if (options.selectionBox) {
@@ -238,12 +239,29 @@ export class CanvasRenderer {
   }
 
   private drawArrow(element: ArrowElement): void {
+    const [firstPoint, ...points] = element.points;
+
+    if (!firstPoint) {
+      return;
+    }
+
     this.context.beginPath();
-    this.context.moveTo(element.start.x, element.start.y);
-    this.context.lineTo(element.end.x, element.end.y);
+    this.context.moveTo(firstPoint.x, firstPoint.y);
+
+    for (const point of points) {
+      this.context.lineTo(point.x, point.y);
+    }
+
     this.context.stroke();
 
-    const [left, right] = getArrowHead(element.start, element.end);
+    const arrowHeadSegment = getArrowHeadSegment(element.points);
+
+    if (!arrowHeadSegment) {
+      return;
+    }
+
+    const [, end] = arrowHeadSegment;
+    const [left, right] = getArrowHead(...arrowHeadSegment);
 
     if (!left || !right) {
       return;
@@ -251,12 +269,16 @@ export class CanvasRenderer {
 
     this.context.beginPath();
     this.context.moveTo(left.x, left.y);
-    this.context.lineTo(element.end.x, element.end.y);
+    this.context.lineTo(end.x, end.y);
     this.context.lineTo(right.x, right.y);
     this.context.stroke();
   }
 
-  private drawSelectedElements(elements: DrawingElement[], selectedElementIds: Set<string>): void {
+  private drawSelectedElements(
+    elements: DrawingElement[],
+    selectedElementIds: Set<string>,
+    zoom: number,
+  ): void {
     this.context.save();
     this.context.strokeStyle = "rgba(75, 111, 255, 0.95)";
     this.context.lineWidth = 1.5;
@@ -267,8 +289,33 @@ export class CanvasRenderer {
         continue;
       }
 
+      if (element.type === "arrow") {
+        this.drawArrowPointHandles(element, zoom);
+        continue;
+      }
+
       const bounds = normalizeRect(getElementBounds(element));
       this.context.strokeRect(bounds.x - 6, bounds.y - 6, bounds.width + 12, bounds.height + 12);
+    }
+
+    this.context.restore();
+  }
+
+  private drawArrowPointHandles(element: ArrowElement, zoom: number): void {
+    const scale = Math.max(zoom, 0.01);
+    const radius = 5 / scale;
+
+    this.context.save();
+    this.context.setLineDash([]);
+    this.context.lineWidth = 1.5 / scale;
+    this.context.strokeStyle = "rgba(75, 111, 255, 0.98)";
+    this.context.fillStyle = "#ffffff";
+
+    for (const point of element.points) {
+      this.context.beginPath();
+      this.context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+      this.context.fill();
+      this.context.stroke();
     }
 
     this.context.restore();

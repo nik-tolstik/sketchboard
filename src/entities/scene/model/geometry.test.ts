@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   constrainToSquareDelta,
   getArrowHead,
+  getArrowHeadSegment,
   getDiamondPoints,
   normalizeRect,
   screenToWorld,
@@ -46,5 +47,18 @@ describe("geometry", () => {
 
   it("creates two arrowhead points", () => {
     expect(getArrowHead({ x: 0, y: 0 }, { x: 40, y: 0 })).toHaveLength(2);
+  });
+
+  it("uses the last non-zero arrow segment for the arrowhead", () => {
+    expect(
+      getArrowHeadSegment([
+        { x: 0, y: 0 },
+        { x: 40, y: 20 },
+        { x: 40, y: 20 },
+      ]),
+    ).toEqual([
+      { x: 0, y: 0 },
+      { x: 40, y: 20 },
+    ]);
   });
 });
