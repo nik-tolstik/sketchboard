@@ -21,6 +21,9 @@ export type CanvasRenderOptions = {
 const GRID_SIZE = 24;
 const CANVAS_BACKGROUND = "#fbfbfa";
 const GRID_COLOR = "rgba(26, 26, 26, 0.075)";
+const TEXT_CONTENT_INSET_X = 3;
+const TEXT_CONTENT_INSET_Y = 4;
+const TEXT_LINE_HEIGHT = 1.3;
 
 export class CanvasRenderer {
   private context: CanvasRenderingContext2D;
@@ -172,8 +175,8 @@ export class CanvasRenderer {
     for (let index = 0; index < lines.length; index += 1) {
       this.context.fillText(
         lines[index] ?? "",
-        element.x,
-        element.y + index * element.fontSize * 1.3,
+        element.x + TEXT_CONTENT_INSET_X,
+        element.y + TEXT_CONTENT_INSET_Y + index * element.fontSize * TEXT_LINE_HEIGHT,
       );
     }
   }

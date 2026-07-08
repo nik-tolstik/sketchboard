@@ -4,12 +4,14 @@ import {
   createBrushElement,
   createShapeElement,
   createTextElement,
+  updateTextElementText,
   type ArrowElement,
   type BrushElement,
   type DrawingElement,
   type ElementStyle,
   type Point,
   type ShapeElement,
+  type TextElement,
   type Tool,
 } from "../domain/elements";
 import {
@@ -17,6 +19,7 @@ import {
   normalizeRect,
   screenToWorld,
   shouldAppendPoint,
+  worldToScreen,
   type Rect,
 } from "../domain/geometry";
 import {
@@ -30,6 +33,13 @@ import type { CanvasRenderOptions } from "./CanvasRenderer";
 
 type RenderPreview = (options?: CanvasRenderOptions) => void;
 type TogglePanning = (isPanning: boolean) => void;
+type TextEditorOptions = {
+  initialText?: string;
+  fontSize?: number;
+  textColor?: string;
+  onCommit: (text: string) => void;
+  onCancel?: () => void;
+};
 
 type SelectionDrag = {
   origin: Point;
@@ -62,6 +72,7 @@ export class EditorController {
   private selectionDrag: SelectionDrag | undefined;
   private moveDrag: MoveDrag | undefined;
   private selectedElementIds = new Set<string>();
+  private editingTextElementId: string | undefined;
   private clipboard: DrawingElement[] = [];
   private lastCursorWorldPoint: Point | undefined;
   private panStart: Point | undefined;
@@ -73,7 +84,7 @@ export class EditorController {
     private readonly store: SceneStore,
     private readonly renderPreview: RenderPreview,
     private readonly togglePanning: TogglePanning,
-    private readonly openTextEditor: (screenPoint: Point, onCommit: (text: string) => void) => void,
+    private readonly openTextEditor: (screenPoint: Point, options: TextEditorOptions) => void,
   ) {
     this.bind();
     this.canvas.dataset.tool = this.activeTool;
@@ -161,6 +172,7 @@ export class EditorController {
     this.canvas.addEventListener("pointermove", this.handlePointerMove);
     this.canvas.addEventListener("pointerup", this.handlePointerUp);
     this.canvas.addEventListener("pointercancel", this.handlePointerUp);
+    this.canvas.addEventListener("dblclick", this.handleDoubleClick);
     this.canvas.addEventListener("contextmenu", (event) => event.preventDefault());
   }
 
@@ -181,15 +193,17 @@ export class EditorController {
     const worldPoint = this.getWorldPoint(event);
 
     if (this.activeTool === "text") {
-      this.openTextEditor(screenPoint, (text) => {
-        const trimmedText = text.trim();
+      this.openTextEditor(screenPoint, {
+        onCommit: (text) => {
+          const trimmedText = text.trim();
 
-        if (trimmedText.length > 0) {
-          const element = this.applyCurrentStyle(createTextElement(worldPoint, trimmedText));
-          this.store.addElement(element);
-          this.selectedElementIds = new Set([element.id]);
-          this.renderSelection();
-        }
+          if (trimmedText.length > 0) {
+            const element = this.applyCurrentStyle(createTextElement(worldPoint, trimmedText));
+            this.store.addElement(element);
+            this.selectedElementIds = new Set([element.id]);
+            this.renderSelection();
+          }
+        },
       });
       return;
     }
@@ -261,6 +275,37 @@ export class EditorController {
     this.draft = undefined;
     this.pointerId = undefined;
     this.releasePointer(event.pointerId);
+    this.renderSelection();
+  };
+
+  private handleDoubleClick = (event: MouseEvent): void => {
+    if (event.button !== PRIMARY_MOUSE_BUTTON) {
+      return;
+    }
+
+    const worldPoint = this.getWorldPoint(event);
+    const textElement = this.getTextElementAtPoint(worldPoint);
+
+    if (!textElement) {
+      return;
+    }
+
+    event.preventDefault();
+    this.draft = undefined;
+    this.selectionDrag = undefined;
+    this.moveDrag = undefined;
+    this.pointerId = undefined;
+    this.selectedElementIds = new Set([textElement.id]);
+    this.renderSelection();
+
+    this.openTextEditor(this.getElementScreenPoint(textElement), {
+      initialText: textElement.text,
+      fontSize: textElement.fontSize,
+      textColor: textElement.style.stroke,
+      onCommit: (text) => this.commitTextElementEdit(textElement, text),
+      onCancel: () => this.finishTextElementEdit(textElement.id),
+    });
+    this.editingTextElementId = textElement.id;
     this.renderSelection();
   };
 
@@ -492,6 +537,56 @@ export class EditorController {
     this.renderSelection();
   }
 
+  private getTextElementAtPoint(point: Point): TextElement | undefined {
+    const snapshot = this.store.getSnapshot();
+    const hitElement = getElementAtPoint(snapshot.elements, point, 8 / snapshot.viewport.zoom);
+
+    return hitElement?.type === "text" ? hitElement : undefined;
+  }
+
+  private getElementScreenPoint(element: TextElement): Point {
+    return worldToScreen({ x: element.x, y: element.y }, this.store.getSnapshot().viewport);
+  }
+
+  private commitTextElementEdit(originalElement: TextElement, text: string): void {
+    const trimmedText = text.trim();
+
+    if (trimmedText.length === 0) {
+      this.store.removeElements(new Set([originalElement.id]));
+      this.selectedElementIds = new Set<string>();
+      this.finishTextElementEdit(originalElement.id);
+      return;
+    }
+
+    const currentElement = this.store
+      .getSnapshot()
+      .elements.find((element) => element.id === originalElement.id);
+
+    if (currentElement?.type !== "text") {
+      this.finishTextElementEdit(originalElement.id);
+      return;
+    }
+
+    if (currentElement.text === trimmedText) {
+      this.finishTextElementEdit(originalElement.id);
+      return;
+    }
+
+    const updatedElement = updateTextElementText(currentElement, trimmedText);
+    this.store.replaceElement(updatedElement);
+    this.selectedElementIds = new Set([updatedElement.id]);
+    this.finishTextElementEdit(updatedElement.id);
+  }
+
+  private finishTextElementEdit(elementId: string): void {
+    if (this.editingTextElementId !== elementId) {
+      return;
+    }
+
+    this.editingTextElementId = undefined;
+    this.renderSelection();
+  }
+
   private clearSelection(): void {
     if (this.selectedElementIds.size === 0) {
       return;
@@ -508,8 +603,17 @@ export class EditorController {
   private renderCurrent(options: CanvasRenderOptions = {}): void {
     this.renderPreview({
       ...options,
+      hiddenElementIds: this.getHiddenElementIds(options.hiddenElementIds),
       selectedElementIds: this.selectedElementIds,
     });
+  }
+
+  private getHiddenElementIds(hiddenElementIds: Set<string> | undefined): Set<string> | undefined {
+    if (!this.editingTextElementId) {
+      return hiddenElementIds;
+    }
+
+    return new Set([...(hiddenElementIds ?? []), this.editingTextElementId]);
   }
 
   private getSelectionBox(selectionDrag: SelectionDrag): Rect {
@@ -613,14 +717,14 @@ export class EditorController {
     this.releasePointer(event.pointerId);
   }
 
-  private getWorldPoint(event: PointerEvent): Point {
+  private getWorldPoint(event: MouseEvent | PointerEvent): Point {
     const worldPoint = screenToWorld(this.getScreenPoint(event), this.store.getSnapshot().viewport);
     this.lastCursorWorldPoint = worldPoint;
 
     return worldPoint;
   }
 
-  private getScreenPoint(event: PointerEvent): Point {
+  private getScreenPoint(event: MouseEvent | PointerEvent): Point {
     const rect = this.canvas.getBoundingClientRect();
 
     return {

@@ -9,7 +9,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["src/**/*.ts", "vite.config.ts"],
+    files: ["src/**/*.ts", "e2e/**/*.ts", "vite.config.ts", "playwright.config.ts"],
     rules: {
       "@typescript-eslint/consistent-type-imports": "error",
       "no-undef": "off",

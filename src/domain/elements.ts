@@ -76,6 +76,15 @@ export const DEFAULT_VIEWPORT: Viewport = {
   zoom: 1,
 };
 
+const MIN_TEXT_WIDTH = 120;
+const TEXT_WIDTH_RATIO = 14 / 24;
+
+export const getTextElementWidth = (text: string, fontSize = 24): number => {
+  const longestLineLength = Math.max(1, ...text.split("\n").map((line) => line.length));
+
+  return Math.max(MIN_TEXT_WIDTH, longestLineLength * fontSize * TEXT_WIDTH_RATIO);
+};
+
 export const createElementId = (): string =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -106,12 +115,19 @@ export const createTextElement = (point: Point, text: string): TextElement => {
     y: point.y,
     text,
     fontSize: 24,
-    width: Math.max(120, text.length * 14),
+    width: getTextElementWidth(text),
     createdAt: timestamp,
     updatedAt: timestamp,
     style: { ...DEFAULT_STYLE },
   };
 };
+
+export const updateTextElementText = (element: TextElement, text: string): TextElement => ({
+  ...element,
+  text,
+  width: getTextElementWidth(text, element.fontSize),
+  updatedAt: now(),
+});
 
 export const createShapeElement = (
   type: ShapeElement["type"],

@@ -90,6 +90,16 @@ let latestScene = store.getSnapshot();
 let latestRenderOptions: Parameters<CanvasRenderer["render"]>[1] = {};
 let closeOpenTextEditor: (() => void) | undefined;
 
+const TEXT_EDITOR_VERTICAL_OFFSET = 2;
+
+type TextEditorOptions = {
+  initialText?: string;
+  fontSize?: number;
+  textColor?: string;
+  onCommit: (text: string) => void;
+  onCancel?: () => void;
+};
+
 const resizeObserver = new ResizeObserver(() => {
   renderer.resize();
   renderer.render(latestScene, latestRenderOptions);
@@ -121,23 +131,24 @@ const setSaveState = (state: SaveState): void => {
 
 const openTextEditor = (
   screenPoint: { x: number; y: number },
-  onCommit: (text: string) => void,
+  options: TextEditorOptions,
 ): void => {
   closeOpenTextEditor?.();
 
   const viewportZoom = latestScene.viewport.zoom;
+  const baseFontSize = options.fontSize ?? 24;
+  const editorFontSize = Math.max(14, baseFontSize * viewportZoom);
   let isOpen = true;
   let shouldCommit = true;
 
   const resizeEditor = (): void => {
-    const fontSize = Math.max(14, 24 * viewportZoom);
     const lines = textEditor.value.split("\n");
     const longestLineLength = Math.max(1, ...lines.map((line) => line.length));
     const width = Math.min(
-      Math.max(longestLineLength * fontSize * 0.62 + 14, 120 * viewportZoom),
+      Math.max(longestLineLength * editorFontSize * 0.62 + 14, 120 * viewportZoom),
       460,
     );
-    const height = Math.max(lines.length * fontSize * 1.3 + 6, 32 * viewportZoom);
+    const height = Math.max(lines.length * editorFontSize * 1.3 + 6, 32 * viewportZoom);
 
     textEditor.style.width = `${width}px`;
     textEditor.style.height = `${height}px`;
@@ -156,7 +167,9 @@ const openTextEditor = (
     closeOpenTextEditor = undefined;
 
     if (shouldCommit) {
-      onCommit(textEditor.value);
+      options.onCommit(textEditor.value);
+    } else {
+      options.onCancel?.();
     }
   };
 
@@ -166,11 +179,12 @@ const openTextEditor = (
   };
   closeOpenTextEditor = close;
 
-  textEditor.value = "";
+  textEditor.value = options.initialText ?? "";
   textEditor.hidden = false;
   textEditor.style.left = `${screenPoint.x}px`;
-  textEditor.style.top = `${screenPoint.y}px`;
-  textEditor.style.fontSize = `${Math.max(14, 24 * viewportZoom)}px`;
+  textEditor.style.top = `${screenPoint.y - TEXT_EDITOR_VERTICAL_OFFSET}px`;
+  textEditor.style.color = options.textColor ?? "var(--text)";
+  textEditor.style.fontSize = `${editorFontSize}px`;
   textEditor.addEventListener("input", resizeEditor);
   textEditor.onblur = close;
   textEditor.onkeydown = (event) => {
@@ -189,6 +203,7 @@ const openTextEditor = (
   window.setTimeout(() => {
     if (isOpen) {
       textEditor.focus();
+      textEditor.setSelectionRange(textEditor.value.length, textEditor.value.length);
     }
   }, 0);
 };

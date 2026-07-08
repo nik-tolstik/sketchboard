@@ -23,6 +23,7 @@
 
 - Keep changes scoped to the requested behavior.
 - Use `apply_patch` for manual edits.
+- When a dev server is already running, reuse its existing URL for QA instead of starting another server on a different port.
 - Run `pnpm exec prettier --write ...` on changed files or `pnpm format`.
 - Before handoff, run:
 
