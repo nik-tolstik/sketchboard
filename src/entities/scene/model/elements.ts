@@ -1,4 +1,5 @@
-export type Tool = "select" | "brush" | "text" | "square" | "diamond" | "circle" | "arrow";
+export type DrawingElementType = "brush" | "text" | "square" | "diamond" | "circle" | "arrow";
+export type Tool = "pan" | "select" | DrawingElementType;
 
 export type Point = {
   x: number;
@@ -20,7 +21,7 @@ export type ElementStyle = {
 
 export type BaseElement = {
   id: string;
-  type: Tool;
+  type: DrawingElementType;
   layer: number;
   createdAt: number;
   updatedAt: number;

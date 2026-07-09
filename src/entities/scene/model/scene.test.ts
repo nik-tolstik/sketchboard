@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_VIEWPORT } from "./elements";
+import { MAX_VIEWPORT_ZOOM, MIN_VIEWPORT_ZOOM } from "./geometry";
 import { createEmptyScene, normalizeScene } from "./scene";
 
 describe("scene", () => {
@@ -29,6 +30,23 @@ describe("scene", () => {
       y: 12,
       zoom: DEFAULT_VIEWPORT.zoom,
     });
+  });
+
+  it("clamps persisted viewport zoom values", () => {
+    expect(
+      normalizeScene({
+        version: 1,
+        elements: [],
+        viewport: { x: 0, y: 0, zoom: 0 },
+      }).viewport.zoom,
+    ).toBe(MIN_VIEWPORT_ZOOM);
+    expect(
+      normalizeScene({
+        version: 1,
+        elements: [],
+        viewport: { x: 0, y: 0, zoom: 10 },
+      }).viewport.zoom,
+    ).toBe(MAX_VIEWPORT_ZOOM);
   });
 
   it("migrates old rectangle and ellipse element types", () => {

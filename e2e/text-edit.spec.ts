@@ -12,8 +12,15 @@ type PersistedElement = {
   points?: PersistedPoint[];
 };
 
+type PersistedViewport = {
+  x?: number;
+  y?: number;
+  zoom?: number;
+};
+
 type PersistedScene = {
   elements?: PersistedElement[];
+  viewport?: PersistedViewport;
 };
 
 type CanvasRegion = {
@@ -52,6 +59,18 @@ const readPersistedElements = async (page: Page): Promise<PersistedElement[]> =>
   const scene = await readPersistedScene(page);
 
   return scene?.elements ?? [];
+};
+
+const readPersistedViewport = async (page: Page): Promise<PersistedViewport | undefined> => {
+  const scene = await readPersistedScene(page);
+
+  return scene?.viewport;
+};
+
+const readPersistedZoom = async (page: Page): Promise<number> => {
+  const viewport = await readPersistedViewport(page);
+
+  return viewport?.zoom ?? 1;
 };
 
 const readPersistedTexts = async (page: Page): Promise<string[]> => {
@@ -130,6 +149,289 @@ const setFillColor = async (page: Page, color: string): Promise<void> => {
     input.dispatchEvent(new Event("change", { bubbles: true }));
   }, color);
 };
+
+const wheelCanvas = async (
+  page: Page,
+  position: { x: number; y: number },
+  deltaY: number,
+): Promise<void> => {
+  const canvas = page.locator("[data-canvas]");
+
+  await canvas.hover({ position });
+  await page.mouse.wheel(0, deltaY);
+};
+
+const dispatchTouchpadPinchWheel = async (
+  page: Page,
+  position: { x: number; y: number },
+  deltaY: number,
+): Promise<void> => {
+  const canvas = page.locator("[data-canvas]");
+  const canvasBox = await canvas.boundingBox();
+
+  expect(canvasBox).not.toBeNull();
+  await canvas.dispatchEvent("wheel", {
+    bubbles: true,
+    cancelable: true,
+    clientX: canvasBox!.x + position.x,
+    clientY: canvasBox!.y + position.y,
+    ctrlKey: true,
+    deltaY,
+  });
+};
+
+const pinchCanvas = async (
+  page: Page,
+  start: { first: { x: number; y: number }; second: { x: number; y: number } },
+  end: { first: { x: number; y: number }; second: { x: number; y: number } },
+): Promise<void> => {
+  const canvasBox = await page.locator("[data-canvas]").boundingBox();
+
+  expect(canvasBox).not.toBeNull();
+
+  const client = await page.context().newCDPSession(page);
+  await client.send("Emulation.setTouchEmulationEnabled", {
+    enabled: true,
+    maxTouchPoints: 2,
+  });
+  await client.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [
+      { id: 1, x: canvasBox!.x + start.first.x, y: canvasBox!.y + start.first.y },
+      { id: 2, x: canvasBox!.x + start.second.x, y: canvasBox!.y + start.second.y },
+    ],
+  });
+  await client.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [
+      { id: 1, x: canvasBox!.x + end.first.x, y: canvasBox!.y + end.first.y },
+      { id: 2, x: canvasBox!.x + end.second.x, y: canvasBox!.y + end.second.y },
+    ],
+  });
+  await client.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+  await client.detach();
+};
+
+test("pans the canvas with the Pan tool without creating history entries", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  await page.keyboard.press("1");
+  await expectActiveTool(page, "pan");
+  await page.keyboard.press("2");
+  await expectActiveTool(page, "select");
+  await page.keyboard.press("8");
+  await expectActiveTool(page, "arrow");
+
+  const canvas = page.locator("[data-canvas]");
+  const textEditor = page.locator("[data-text-editor]");
+
+  await page.getByRole("button", { name: "Text" }).click();
+  await canvas.click({ position: { x: 320, y: 260 } });
+  await expect(textEditor).toBeVisible();
+  await textEditor.fill("Pan target");
+  await textEditor.press("Control+Enter");
+
+  await expect.poll(() => readPersistedElements(page)).toHaveLength(1);
+  await expect(page.locator("[data-layer-panel]")).toBeVisible();
+
+  const viewportBeforePan = await readPersistedViewport(page);
+
+  await page.keyboard.press("1");
+  await expectActiveTool(page, "pan");
+  await dragCanvas(page, { x: 320, y: 260 }, { x: 390, y: 300 });
+
+  await expect(canvas).toHaveAttribute("data-panning", "false");
+  await expect.poll(() => readPersistedElements(page)).toHaveLength(1);
+  await expect(page.locator("[data-layer-panel]")).toBeVisible();
+  await expect
+    .poll(() => readPersistedViewport(page))
+    .toMatchObject({
+      x: (viewportBeforePan?.x ?? 0) + 70,
+      y: (viewportBeforePan?.y ?? 0) + 40,
+      zoom: viewportBeforePan?.zoom ?? 1,
+    });
+
+  await page.keyboard.press("Control+Z");
+
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+  await expect
+    .poll(() => readPersistedViewport(page))
+    .toMatchObject({
+      x: (viewportBeforePan?.x ?? 0) + 70,
+      y: (viewportBeforePan?.y ?? 0) + 40,
+      zoom: viewportBeforePan?.zoom ?? 1,
+    });
+});
+
+test("pans with the mouse wheel without creating history entries", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  const canvas = page.locator("[data-canvas]");
+  const textEditor = page.locator("[data-text-editor]");
+
+  await page.getByRole("button", { name: "Text" }).click();
+  await canvas.click({ position: { x: 320, y: 260 } });
+  await expect(textEditor).toBeVisible();
+  await textEditor.fill("Zoom target");
+  await textEditor.press("Control+Enter");
+  await expect.poll(() => readPersistedElements(page)).toHaveLength(1);
+
+  const viewportBeforeWheel = await readPersistedViewport(page);
+
+  await wheelCanvas(page, { x: 320, y: 260 }, 180);
+
+  await expect
+    .poll(() => readPersistedViewport(page))
+    .toMatchObject({
+      x: viewportBeforeWheel?.x ?? 0,
+      y: (viewportBeforeWheel?.y ?? 0) - 180,
+      zoom: viewportBeforeWheel?.zoom ?? 1,
+    });
+  const viewportAfterWheel = await readPersistedViewport(page);
+
+  await page.keyboard.press("Control+Z");
+
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+  await expect
+    .poll(() => readPersistedViewport(page))
+    .toMatchObject({
+      x: viewportAfterWheel?.x,
+      y: viewportAfterWheel?.y,
+      zoom: viewportAfterWheel?.zoom,
+    });
+});
+
+test("zooms with modifier wheel without creating history entries", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  const canvas = page.locator("[data-canvas]");
+  const textEditor = page.locator("[data-text-editor]");
+
+  await page.getByRole("button", { name: "Text" }).click();
+  await canvas.click({ position: { x: 320, y: 260 } });
+  await expect(textEditor).toBeVisible();
+  await textEditor.fill("Modifier zoom target");
+  await textEditor.press("Control+Enter");
+  await expect.poll(() => readPersistedElements(page)).toHaveLength(1);
+
+  const zoomBeforeWheel = await readPersistedZoom(page);
+
+  await dispatchTouchpadPinchWheel(page, { x: 320, y: 260 }, -180);
+
+  await expect.poll(() => readPersistedZoom(page)).toBeGreaterThan(zoomBeforeWheel);
+  const viewportAfterZoom = await readPersistedViewport(page);
+
+  await page.keyboard.press("Control+Z");
+
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+  await expect
+    .poll(() => readPersistedViewport(page))
+    .toMatchObject({
+      x: viewportAfterZoom?.x,
+      y: viewportAfterZoom?.y,
+      zoom: viewportAfterZoom?.zoom,
+    });
+});
+
+test("zooms with controls and keyboard shortcuts", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+
+  const canvas = page.locator("[data-canvas]");
+  const zoomReset = page.locator("[data-zoom-reset]");
+
+  await canvas.click({ position: { x: 420, y: 280 } });
+  await expect(zoomReset).toHaveText("100%");
+
+  await page.locator("[data-zoom-in]").click();
+  await expect(zoomReset).toHaveText("120%");
+  await expect.poll(() => readPersistedZoom(page)).toBeGreaterThan(1);
+
+  await page.keyboard.press("Control+0");
+  await expect(zoomReset).toHaveText("100%");
+  await expect.poll(() => readPersistedZoom(page)).toBeCloseTo(1, 4);
+
+  await page.keyboard.press("Control+=");
+  await expect(zoomReset).toHaveText("120%");
+
+  await page.keyboard.press("Control+-");
+  await expect(zoomReset).toHaveText("100%");
+
+  await page.locator("[data-zoom-out]").click();
+  await expect(zoomReset).toHaveText("83%");
+  await expect.poll(() => readPersistedZoom(page)).toBeLessThan(1);
+
+  await page.locator("[data-zoom-reset]").click();
+  await expect(zoomReset).toHaveText("100%");
+});
+
+test("zooms with touchpad pinch wheel and phone pinch gestures", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+
+  const touchpadZoomBefore = await readPersistedZoom(page);
+
+  await dispatchTouchpadPinchWheel(page, { x: 360, y: 260 }, -140);
+  await expect.poll(() => readPersistedZoom(page)).toBeGreaterThan(touchpadZoomBefore);
+
+  await page.locator("[data-zoom-reset]").click();
+  await expect.poll(() => readPersistedZoom(page)).toBeCloseTo(1, 4);
+
+  await pinchCanvas(
+    page,
+    {
+      first: { x: 280, y: 320 },
+      second: { x: 360, y: 320 },
+    },
+    {
+      first: { x: 230, y: 320 },
+      second: { x: 410, y: 320 },
+    },
+  );
+
+  await expect.poll(() => readPersistedZoom(page)).toBeGreaterThan(1);
+});
+
+test("creates and edits text after zooming", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  const canvas = page.locator("[data-canvas]");
+  const textEditor = page.locator("[data-text-editor]");
+  const textPoint = { x: 320, y: 260 };
+
+  await page.locator("[data-zoom-in]").click();
+  await expect.poll(() => readPersistedZoom(page)).toBeGreaterThan(1);
+
+  await page.getByRole("button", { name: "Text" }).click();
+  await canvas.click({ position: textPoint });
+  await expect(textEditor).toBeVisible();
+  await textEditor.fill("Zoomed note");
+  await textEditor.press("Control+Enter");
+  await expect.poll(() => readPersistedTexts(page)).toEqual(["Zoomed note"]);
+
+  await canvas.dblclick({ position: { x: textPoint.x + 6, y: textPoint.y + 6 } });
+  await expect(textEditor).toBeVisible();
+  await expect(textEditor).toHaveValue("Zoomed note");
+});
 
 test("edits canvas text on double click", async ({ page }) => {
   await page.goto("/");

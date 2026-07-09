@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_VIEWPORT_ZOOM,
+  MIN_VIEWPORT_ZOOM,
+  clampViewportZoom,
   constrainToSquareDelta,
   getArrowHead,
   getArrowHeadSegment,
@@ -7,6 +10,8 @@ import {
   normalizeRect,
   screenToWorld,
   shouldAppendPoint,
+  worldToScreen,
+  zoomViewportAtScreenPoint,
 } from "./geometry";
 
 describe("geometry", () => {
@@ -15,6 +20,23 @@ describe("geometry", () => {
       x: 50,
       y: 50,
     });
+  });
+
+  it("clamps viewport zoom to the supported range", () => {
+    expect(clampViewportZoom(0)).toBe(MIN_VIEWPORT_ZOOM);
+    expect(clampViewportZoom(0.1)).toBe(MIN_VIEWPORT_ZOOM);
+    expect(clampViewportZoom(8)).toBe(MAX_VIEWPORT_ZOOM);
+    expect(clampViewportZoom(Number.NaN)).toBe(1);
+  });
+
+  it("zooms a viewport around a fixed screen point", () => {
+    const viewport = { x: 40, y: -10, zoom: 2 };
+    const screenPoint = { x: 140, y: 90 };
+    const worldPoint = screenToWorld(screenPoint, viewport);
+    const nextViewport = zoomViewportAtScreenPoint(viewport, screenPoint, 3);
+
+    expect(nextViewport.zoom).toBe(3);
+    expect(worldToScreen(worldPoint, nextViewport)).toEqual(screenPoint);
   });
 
   it("normalizes rectangles with negative dimensions", () => {

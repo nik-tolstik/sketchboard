@@ -291,12 +291,16 @@ button {
   touch-action: none;
 }
 
-.drawing-canvas[data-panning="true"] {
-  cursor: grabbing;
+.drawing-canvas[data-tool="pan"] {
+  cursor: grab;
 }
 
 .drawing-canvas[data-tool="select"] {
   cursor: default;
+}
+
+.drawing-canvas[data-panning="true"] {
+  cursor: grabbing;
 }
 
 .inline-text-editor {
@@ -342,6 +346,55 @@ button {
   font-size: 12px;
   font-weight: 650;
   backdrop-filter: blur(18px);
+}
+
+.zoom-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 9;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--editor-surface);
+  box-shadow: 0 12px 30px rgba(16, 16, 16, 0.1);
+  backdrop-filter: blur(18px);
+}
+
+.zoom-panel__button {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.zoom-panel__value {
+  display: inline-grid;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: var(--editor-text);
+  background: rgba(22, 22, 22, 0.05);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    transform 150ms ease;
+}
+
+.zoom-panel__value:hover {
+  background: rgba(22, 22, 22, 0.08);
+}
+
+.zoom-panel__value:active {
+  transform: translateY(1px);
 }
 
 .layer-panel {
@@ -406,8 +459,13 @@ button {
     text-align: center;
   }
 
-  .layer-panel {
+  .zoom-panel {
+    right: 10px;
     bottom: 58px;
+  }
+
+  .layer-panel {
+    bottom: 106px;
   }
 }
 

@@ -7,6 +7,7 @@ import {
   createTextElement,
   updateArrowPoint,
   updateTextElementText,
+  clampViewportZoom,
   type ArrowElement,
   type BrushElement,
   type DrawingElement,
@@ -28,10 +29,13 @@ import {
   shouldAppendPoint,
   translateElement,
   worldToScreen,
+  zoomViewportAtScreenPoint,
+  ZOOM_STEP,
   type Rect,
 } from "@/entities/scene";
 import type { SceneStore } from "@/entities/scene";
 import type { LayerOrderCommand } from "@/entities/scene";
+import type { Viewport } from "@/entities/scene";
 import type { CanvasRenderOptions } from "../lib/CanvasRenderer";
 
 type RenderPreview = (options?: CanvasRenderOptions) => void;
@@ -75,10 +79,18 @@ type ArrowCreateDrag = {
   dragged: boolean;
 };
 
+type PinchGesture = {
+  pointerIds: [number, number];
+  startDistance: number;
+  startViewport: Viewport;
+  startCenterWorld: Point;
+};
+
 const MIN_SHAPE_SIZE = 6;
 const MIN_SELECTION_DRAG_DISTANCE = 4;
 const MIDDLE_MOUSE_BUTTON = 1;
 const PRIMARY_MOUSE_BUTTON = 0;
+const WHEEL_ZOOM_SPEED = 0.002;
 
 export class EditorController {
   private activeTool: Tool = "select";
@@ -100,6 +112,8 @@ export class EditorController {
   private panStart: Point | undefined;
   private panViewportStart: Point | undefined;
   private pointerId: number | undefined;
+  private activeTouchPointers = new Map<number, Point>();
+  private pinchGesture: PinchGesture | undefined;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -119,12 +133,19 @@ export class EditorController {
     this.canvas.removeEventListener("pointermove", this.handlePointerMove);
     this.canvas.removeEventListener("pointerup", this.handlePointerUp);
     this.canvas.removeEventListener("pointercancel", this.handlePointerUp);
+    this.canvas.removeEventListener("wheel", this.handleWheel);
     this.canvas.removeEventListener("dblclick", this.handleDoubleClick);
     this.canvas.removeEventListener("contextmenu", this.handleContextMenu);
 
     if (this.pointerId !== undefined) {
       this.releasePointer(this.pointerId);
     }
+
+    for (const pointerId of this.activeTouchPointers.keys()) {
+      this.releasePointer(pointerId);
+    }
+
+    this.activeTouchPointers.clear();
   }
 
   setTool(tool: Tool): void {
@@ -228,11 +249,24 @@ export class EditorController {
     link.click();
   }
 
+  zoomIn(): void {
+    this.zoomAtCanvasCenter(ZOOM_STEP);
+  }
+
+  zoomOut(): void {
+    this.zoomAtCanvasCenter(1 / ZOOM_STEP);
+  }
+
+  resetZoom(): void {
+    this.updateViewportZoomAt(this.getCanvasCenterPoint(), 1);
+  }
+
   private bind(): void {
     this.canvas.addEventListener("pointerdown", this.handlePointerDown);
     this.canvas.addEventListener("pointermove", this.handlePointerMove);
     this.canvas.addEventListener("pointerup", this.handlePointerUp);
     this.canvas.addEventListener("pointercancel", this.handlePointerUp);
+    this.canvas.addEventListener("wheel", this.handleWheel, { passive: false });
     this.canvas.addEventListener("dblclick", this.handleDoubleClick);
     this.canvas.addEventListener("contextmenu", this.handleContextMenu);
   }
@@ -242,15 +276,29 @@ export class EditorController {
   };
 
   private handlePointerDown = (event: PointerEvent): void => {
-    this.pointerId = event.pointerId;
     this.canvas.setPointerCapture(event.pointerId);
 
+    if (event.pointerType === "touch") {
+      this.handleTouchPointerDown(event);
+      return;
+    }
+
+    this.pointerId = event.pointerId;
+    this.startPointerInteraction(event);
+  };
+
+  private startPointerInteraction(event: PointerEvent): void {
     if (event.button === MIDDLE_MOUSE_BUTTON) {
       this.startPan(event);
       return;
     }
 
     if (event.button !== PRIMARY_MOUSE_BUTTON) {
+      return;
+    }
+
+    if (this.activeTool === "pan") {
+      this.startPan(event);
       return;
     }
 
@@ -286,9 +334,18 @@ export class EditorController {
     this.clearSelection();
     this.draft = this.createDraft(worldPoint);
     this.renderCurrent({ preview: this.draft });
-  };
+  }
 
   private handlePointerMove = (event: PointerEvent): void => {
+    if (event.pointerType === "touch") {
+      this.handleTouchPointerMove(event);
+      return;
+    }
+
+    this.continuePointerMove(event);
+  };
+
+  private continuePointerMove(event: PointerEvent): void {
     const worldPoint = this.getWorldPoint(event);
 
     if (this.pointerId === undefined) {
@@ -334,9 +391,18 @@ export class EditorController {
 
     this.draft = this.updateDraft(this.draft, worldPoint);
     this.renderCurrent({ preview: this.draft });
-  };
+  }
 
   private handlePointerUp = (event: PointerEvent): void => {
+    if (event.pointerType === "touch") {
+      this.handleTouchPointerUp(event);
+      return;
+    }
+
+    this.continuePointerUp(event);
+  };
+
+  private continuePointerUp(event: PointerEvent): void {
     if (this.pointerId !== event.pointerId) {
       return;
     }
@@ -387,7 +453,145 @@ export class EditorController {
     }
 
     this.renderSelection();
+  }
+
+  private handleWheel = (event: WheelEvent): void => {
+    const delta = this.getNormalizedWheelDelta(event);
+
+    if (delta.x === 0 && delta.y === 0) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (!event.ctrlKey && !event.metaKey) {
+      this.panByWheelDelta(delta);
+      return;
+    }
+
+    const viewport = this.store.getSnapshot().viewport;
+    const zoomDelta = delta.y !== 0 ? delta.y : delta.x;
+    const nextZoom = viewport.zoom * Math.exp(-zoomDelta * WHEEL_ZOOM_SPEED);
+
+    this.updateViewportZoomAt(this.getScreenPoint(event), nextZoom);
   };
+
+  private handleTouchPointerDown(event: PointerEvent): void {
+    event.preventDefault();
+    this.activeTouchPointers.set(event.pointerId, this.getScreenPoint(event));
+
+    if (this.activeTouchPointers.size >= 2) {
+      this.startPinchGesture();
+      return;
+    }
+
+    this.pointerId = event.pointerId;
+    this.startPointerInteraction(event);
+  }
+
+  private handleTouchPointerMove(event: PointerEvent): void {
+    if (!this.activeTouchPointers.has(event.pointerId)) {
+      return;
+    }
+
+    event.preventDefault();
+    this.activeTouchPointers.set(event.pointerId, this.getScreenPoint(event));
+
+    if (this.pinchGesture) {
+      this.updatePinchGesture();
+      return;
+    }
+
+    this.continuePointerMove(event);
+  }
+
+  private handleTouchPointerUp(event: PointerEvent): void {
+    const wasTracked = this.activeTouchPointers.delete(event.pointerId);
+
+    if (this.pinchGesture) {
+      event.preventDefault();
+      this.releasePointer(event.pointerId);
+
+      if (!this.getPinchPointerPoints(this.pinchGesture)) {
+        this.pinchGesture = undefined;
+        this.renderSelection();
+      }
+
+      return;
+    }
+
+    if (!wasTracked) {
+      return;
+    }
+
+    this.continuePointerUp(event);
+  }
+
+  private startPinchGesture(): void {
+    const pointers = [...this.activeTouchPointers.entries()];
+    const firstPointer = pointers[0];
+    const secondPointer = pointers[1];
+
+    if (!firstPointer || !secondPointer) {
+      return;
+    }
+
+    const [firstPointerId, firstPoint] = firstPointer;
+    const [secondPointerId, secondPoint] = secondPointer;
+
+    const snapshotViewport = this.store.getSnapshot().viewport;
+    const startViewport = {
+      ...snapshotViewport,
+      zoom: clampViewportZoom(snapshotViewport.zoom),
+    };
+    const startCenter = this.getCenterPoint(firstPoint, secondPoint);
+
+    this.cancelActivePointerInteraction();
+    this.pinchGesture = {
+      pointerIds: [firstPointerId, secondPointerId],
+      startDistance: Math.max(distance(firstPoint, secondPoint), 1),
+      startViewport,
+      startCenterWorld: screenToWorld(startCenter, startViewport),
+    };
+    this.lastCursorWorldPoint = this.pinchGesture.startCenterWorld;
+  }
+
+  private updatePinchGesture(): void {
+    const gesture = this.pinchGesture;
+
+    if (!gesture) {
+      return;
+    }
+
+    const points = this.getPinchPointerPoints(gesture);
+
+    if (!points) {
+      return;
+    }
+
+    const [firstPoint, secondPoint] = points;
+    const currentDistance = Math.max(distance(firstPoint, secondPoint), 1);
+    const currentCenter = this.getCenterPoint(firstPoint, secondPoint);
+    const nextZoom = clampViewportZoom(
+      gesture.startViewport.zoom * (currentDistance / gesture.startDistance),
+    );
+    const nextViewport = {
+      x: currentCenter.x - gesture.startCenterWorld.x * nextZoom,
+      y: currentCenter.y - gesture.startCenterWorld.y * nextZoom,
+      zoom: nextZoom,
+    };
+
+    this.lastCursorWorldPoint = screenToWorld(currentCenter, nextViewport);
+    this.updateViewportIfChanged(nextViewport);
+  }
+
+  private getPinchPointerPoints(gesture: PinchGesture): [Point, Point] | undefined {
+    const [firstPointerId, secondPointerId] = gesture.pointerIds;
+    const firstPoint = this.activeTouchPointers.get(firstPointerId);
+    const secondPoint = this.activeTouchPointers.get(secondPointerId);
+
+    return firstPoint && secondPoint ? [firstPoint, secondPoint] : undefined;
+  }
 
   private handleDoubleClick = (event: MouseEvent): void => {
     if (event.button !== PRIMARY_MOUSE_BUTTON) {
@@ -1067,6 +1271,106 @@ export class EditorController {
     }
 
     return Math.abs(draft.width) >= MIN_SHAPE_SIZE && Math.abs(draft.height) >= MIN_SHAPE_SIZE;
+  }
+
+  private zoomAtCanvasCenter(factor: number): void {
+    const viewport = this.store.getSnapshot().viewport;
+
+    this.updateViewportZoomAt(this.getCanvasCenterPoint(), viewport.zoom * factor);
+  }
+
+  private updateViewportZoomAt(screenPoint: Point, nextZoom: number): void {
+    const nextViewport = zoomViewportAtScreenPoint(
+      this.store.getSnapshot().viewport,
+      screenPoint,
+      nextZoom,
+    );
+
+    this.lastCursorWorldPoint = screenToWorld(screenPoint, nextViewport);
+    this.updateViewportIfChanged(nextViewport);
+  }
+
+  private updateViewportIfChanged(nextViewport: Viewport): void {
+    const currentViewport = this.store.getSnapshot().viewport;
+
+    if (
+      currentViewport.x === nextViewport.x &&
+      currentViewport.y === nextViewport.y &&
+      currentViewport.zoom === nextViewport.zoom
+    ) {
+      return;
+    }
+
+    this.store.updateViewport(nextViewport);
+  }
+
+  private panByWheelDelta(delta: Point): void {
+    const viewport = this.store.getSnapshot().viewport;
+
+    this.updateViewportIfChanged({
+      ...viewport,
+      x: viewport.x - delta.x,
+      y: viewport.y - delta.y,
+    });
+  }
+
+  private getNormalizedWheelDelta(event: WheelEvent): Point {
+    const delta = {
+      x: event.deltaX,
+      y: event.deltaY,
+    };
+
+    if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+      return {
+        x: delta.x * 16,
+        y: delta.y * 16,
+      };
+    }
+
+    if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+      return {
+        x: delta.x * this.canvas.clientWidth,
+        y: delta.y * this.canvas.clientHeight,
+      };
+    }
+
+    return delta;
+  }
+
+  private getCenterPoint(firstPoint: Point, secondPoint: Point): Point {
+    return {
+      x: (firstPoint.x + secondPoint.x) / 2,
+      y: (firstPoint.y + secondPoint.y) / 2,
+    };
+  }
+
+  private getCanvasCenterPoint(): Point {
+    const rect = this.canvas.getBoundingClientRect();
+
+    return {
+      x: rect.width / 2,
+      y: rect.height / 2,
+    };
+  }
+
+  private cancelActivePointerInteraction(): void {
+    const wasPanning = this.isPanning;
+
+    this.draft = undefined;
+    this.selectionDrag = undefined;
+    this.moveDrag = undefined;
+    this.arrowPointDrag = undefined;
+    this.cancelArrowDraft();
+    this.isPanning = false;
+    this.panStart = undefined;
+    this.panViewportStart = undefined;
+    this.pointerId = undefined;
+
+    if (wasPanning) {
+      this.togglePanning(false);
+    }
+
+    this.renderSelection();
   }
 
   private startPan(event: PointerEvent): void {

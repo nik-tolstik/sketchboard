@@ -42,6 +42,7 @@ export function useEditorRuntime() {
   const [strokeColor, setStrokeColorState] = useState(DEFAULT_STROKE_COLOR);
   const [fillColor, setFillColorState] = useState(DEFAULT_FILL_COLOR);
   const [hasSelection, setHasSelection] = useState(false);
+  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -174,6 +175,7 @@ export function useEditorRuntime() {
 
     const unsubscribeScene = store.subscribe((scene) => {
       latestScene = scene;
+      setZoom(scene.viewport.zoom);
       renderer.render(scene, latestRenderOptions);
       controller.refreshSelection();
     });
@@ -196,6 +198,18 @@ export function useEditorRuntime() {
       const isZKey = event.key.toLowerCase() === "z" || event.code === "KeyZ";
       const isCKey = event.key.toLowerCase() === "c" || event.code === "KeyC";
       const isVKey = event.key.toLowerCase() === "v" || event.code === "KeyV";
+      const isZoomInKey =
+        event.key === "+" ||
+        event.key === "=" ||
+        event.code === "Equal" ||
+        event.code === "NumpadAdd";
+      const isZoomOutKey =
+        event.key === "-" ||
+        event.key === "_" ||
+        event.code === "Minus" ||
+        event.code === "NumpadSubtract";
+      const isResetZoomKey =
+        event.key === "0" || event.code === "Digit0" || event.code === "Numpad0";
 
       if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();
@@ -225,6 +239,24 @@ export function useEditorRuntime() {
       if (isModifierShortcut && isVKey) {
         event.preventDefault();
         currentController.pasteSelection();
+        return;
+      }
+
+      if (isModifierShortcut && isZoomInKey) {
+        event.preventDefault();
+        currentController.zoomIn();
+        return;
+      }
+
+      if (isModifierShortcut && isZoomOutKey) {
+        event.preventDefault();
+        currentController.zoomOut();
+        return;
+      }
+
+      if (isModifierShortcut && isResetZoomKey) {
+        event.preventDefault();
+        currentController.resetZoom();
         return;
       }
 
@@ -259,6 +291,7 @@ export function useEditorRuntime() {
       storeRef.current = null;
       setIsPanning(false);
       setHasSelection(false);
+      setZoom(1);
     };
   }, []);
 
@@ -285,6 +318,18 @@ export function useEditorRuntime() {
     controllerRef.current?.exportPng();
   }, []);
 
+  const zoomIn = useCallback((): void => {
+    controllerRef.current?.zoomIn();
+  }, []);
+
+  const zoomOut = useCallback((): void => {
+    controllerRef.current?.zoomOut();
+  }, []);
+
+  const resetZoom = useCallback((): void => {
+    controllerRef.current?.resetZoom();
+  }, []);
+
   const updateSelectionLayer = useCallback((command: LayerOrderCommand): void => {
     controllerRef.current?.updateSelectionLayer(command);
   }, []);
@@ -304,5 +349,9 @@ export function useEditorRuntime() {
     strokeColor,
     textEditorRef,
     updateSelectionLayer,
+    zoom,
+    zoomIn,
+    zoomOut,
+    resetZoom,
   };
 }

@@ -91,7 +91,7 @@ export class CanvasRenderer {
     }
 
     if (options.selectionBox) {
-      this.drawSelectionBox(options.selectionBox);
+      this.drawSelectionBox(options.selectionBox, scene.viewport.zoom);
     }
 
     this.context.restore();
@@ -279,10 +279,13 @@ export class CanvasRenderer {
     selectedElementIds: Set<string>,
     zoom: number,
   ): void {
+    const scale = Math.max(zoom, 0.01);
+    const outlinePadding = 6 / scale;
+
     this.context.save();
     this.context.strokeStyle = "rgba(75, 111, 255, 0.95)";
-    this.context.lineWidth = 1.5;
-    this.context.setLineDash([6, 4]);
+    this.context.lineWidth = 1.5 / scale;
+    this.context.setLineDash([6 / scale, 4 / scale]);
 
     for (const element of elements) {
       if (!selectedElementIds.has(element.id)) {
@@ -295,7 +298,12 @@ export class CanvasRenderer {
       }
 
       const bounds = normalizeRect(getElementBounds(element));
-      this.context.strokeRect(bounds.x - 6, bounds.y - 6, bounds.width + 12, bounds.height + 12);
+      this.context.strokeRect(
+        bounds.x - outlinePadding,
+        bounds.y - outlinePadding,
+        bounds.width + outlinePadding * 2,
+        bounds.height + outlinePadding * 2,
+      );
     }
 
     this.context.restore();
@@ -321,14 +329,15 @@ export class CanvasRenderer {
     this.context.restore();
   }
 
-  private drawSelectionBox(selectionBox: Rect): void {
+  private drawSelectionBox(selectionBox: Rect, zoom: number): void {
     const rect = normalizeRect(selectionBox);
+    const scale = Math.max(zoom, 0.01);
 
     this.context.save();
     this.context.strokeStyle = "rgba(75, 111, 255, 0.9)";
     this.context.fillStyle = "rgba(75, 111, 255, 0.08)";
-    this.context.lineWidth = 1.5;
-    this.context.setLineDash([6, 5]);
+    this.context.lineWidth = 1.5 / scale;
+    this.context.setLineDash([6 / scale, 5 / scale]);
     this.context.beginPath();
     this.context.rect(rect.x, rect.y, rect.width, rect.height);
     this.context.fill();

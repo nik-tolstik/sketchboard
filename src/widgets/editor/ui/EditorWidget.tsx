@@ -34,9 +34,14 @@ export function EditorWidget() {
     strokeColor,
     textEditorRef,
     updateSelectionLayer,
+    zoom,
+    zoomIn,
+    zoomOut,
+    resetZoom,
   } = useEditorRuntime();
   const strokeColorInputRef = useRef<HTMLInputElement>(null);
   const fillColorInputRef = useRef<HTMLInputElement>(null);
+  const zoomPercent = `${Math.round(zoom * 100)}%`;
 
   useEffect(() => {
     const input = strokeColorInputRef.current;
@@ -179,8 +184,43 @@ export function EditorWidget() {
           spellCheck={false}
         />
         <aside className="help-panel" aria-label="Canvas tips">
-          <span>Middle mouse drag pans the canvas</span>
+          <span>Wheel moves, Ctrl/Cmd wheel or pinch zooms</span>
         </aside>
+        <section aria-label="Zoom controls" className="zoom-panel">
+          <Button
+            aria-label="Zoom out"
+            className="icon-button zoom-panel__button"
+            data-zoom-out
+            onClick={zoomOut}
+            title="Zoom out"
+            type="button"
+            variant="ghost"
+          >
+            <span aria-hidden="true">-</span>
+          </Button>
+          <Button
+            aria-label={`Reset zoom to 100%. Current zoom ${zoomPercent}`}
+            className="zoom-panel__value"
+            data-zoom-reset
+            onClick={resetZoom}
+            title="Reset zoom"
+            type="button"
+            variant="ghost"
+          >
+            {zoomPercent}
+          </Button>
+          <Button
+            aria-label="Zoom in"
+            className="icon-button zoom-panel__button"
+            data-zoom-in
+            onClick={zoomIn}
+            title="Zoom in"
+            type="button"
+            variant="ghost"
+          >
+            <span aria-hidden="true">+</span>
+          </Button>
+        </section>
         <section
           aria-label="Layer controls"
           className="layer-panel"

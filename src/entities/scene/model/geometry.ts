@@ -1,10 +1,22 @@
 import type { Point, Viewport } from "./elements";
 
+export const MIN_VIEWPORT_ZOOM = 0.25;
+export const MAX_VIEWPORT_ZOOM = 4;
+export const ZOOM_STEP = 1.2;
+
 export type Rect = {
   x: number;
   y: number;
   width: number;
   height: number;
+};
+
+export const clampViewportZoom = (zoom: number): number => {
+  if (!Number.isFinite(zoom)) {
+    return 1;
+  }
+
+  return Math.min(MAX_VIEWPORT_ZOOM, Math.max(MIN_VIEWPORT_ZOOM, zoom));
 };
 
 export const screenToWorld = (point: Point, viewport: Viewport): Point => ({
@@ -16,6 +28,25 @@ export const worldToScreen = (point: Point, viewport: Viewport): Point => ({
   x: point.x * viewport.zoom + viewport.x,
   y: point.y * viewport.zoom + viewport.y,
 });
+
+export const zoomViewportAtScreenPoint = (
+  viewport: Viewport,
+  screenPoint: Point,
+  nextZoom: number,
+): Viewport => {
+  const currentViewport = {
+    ...viewport,
+    zoom: clampViewportZoom(viewport.zoom),
+  };
+  const worldPoint = screenToWorld(screenPoint, currentViewport);
+  const zoom = clampViewportZoom(nextZoom);
+
+  return {
+    x: screenPoint.x - worldPoint.x * zoom,
+    y: screenPoint.y - worldPoint.y * zoom,
+    zoom,
+  };
+};
 
 export const normalizeRect = (rect: Rect): Rect => {
   const x = rect.width < 0 ? rect.x + rect.width : rect.x;

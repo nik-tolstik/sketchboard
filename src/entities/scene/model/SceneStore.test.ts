@@ -42,11 +42,11 @@ describe("SceneStore", () => {
     await store.hydrate();
 
     store.addElement(createTextElement({ x: 10, y: 10 }, "first"));
-    store.updateViewport({ x: 100, y: 50, zoom: 1 });
+    store.updateViewport({ x: 100, y: 50, zoom: 2 });
 
     expect(store.undo()).toBe(true);
     expect(store.getSnapshot().elements).toHaveLength(0);
-    expect(store.getSnapshot().viewport).toEqual({ x: 100, y: 50, zoom: 1 });
+    expect(store.getSnapshot().viewport).toEqual({ x: 100, y: 50, zoom: 2 });
   });
 
   it("removes elements as one undoable change", async () => {

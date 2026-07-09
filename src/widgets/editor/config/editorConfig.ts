@@ -16,13 +16,14 @@ export type LayerControlDefinition = {
 };
 
 export const TOOLS: ToolDefinition[] = [
-  { id: "select", label: "Select", shortcut: "V", numericShortcut: "1" },
-  { id: "brush", label: "Brush", shortcut: "B", numericShortcut: "2" },
-  { id: "text", label: "Text", shortcut: "T", numericShortcut: "3" },
-  { id: "square", label: "Square", shortcut: "S", numericShortcut: "4" },
-  { id: "diamond", label: "Diamond", shortcut: "D", numericShortcut: "5" },
-  { id: "circle", label: "Circle", shortcut: "C", numericShortcut: "6" },
-  { id: "arrow", label: "Arrow", shortcut: "A" },
+  { id: "pan", label: "Pan", shortcut: "H", numericShortcut: "1" },
+  { id: "select", label: "Select", shortcut: "V", numericShortcut: "2" },
+  { id: "brush", label: "Brush", shortcut: "B", numericShortcut: "3" },
+  { id: "text", label: "Text", shortcut: "T", numericShortcut: "4" },
+  { id: "square", label: "Square", shortcut: "S", numericShortcut: "5" },
+  { id: "diamond", label: "Diamond", shortcut: "D", numericShortcut: "6" },
+  { id: "circle", label: "Circle", shortcut: "C", numericShortcut: "7" },
+  { id: "arrow", label: "Arrow", shortcut: "A", numericShortcut: "8" },
 ];
 
 export const LAYER_CONTROLS: LayerControlDefinition[] = [

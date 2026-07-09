@@ -72,14 +72,20 @@ Shared code must not import from app, pages, widgets, features, or entities.
 
 ## Interaction Model
 
-- Middle mouse drag pans the viewport.
+- The Pan tool pans the viewport with primary-button drag; middle mouse drag pans the viewport from any tool.
+- Mouse wheel and touchpad wheel pan the viewport without changing zoom.
+- `Ctrl`/`Cmd` plus mouse wheel or touchpad wheel zooms the viewport around the cursor.
+- Native touchpad pinch zooms when the browser reports it as modifier-wheel input.
+- Phone and touch-screen two-finger pinch zooms the viewport around the gesture midpoint.
+- The zoom controls and `Ctrl`/`Cmd` with `+`, `-`, or `0` zoom the viewport around the canvas center.
 - Select tool supports click selection, Shift-click additive toggling, area selection, and dragging selected elements.
 - `Ctrl+C` copies selected elements into an in-memory clipboard.
 - `Ctrl+V` pastes copies at the last cursor world position.
 - `Delete` and `Backspace` remove selected elements.
 - Text uses a temporary inline textarea positioned on the canvas. Committing creates a `text` element.
 - `Ctrl+Z` and `Ctrl+Shift+Z` undo/redo element changes.
-- Number shortcuts `1` through `6` select the first six toolbar tools; letter shortcuts remain available.
+- Viewport pan and zoom changes do not create undo history entries.
+- Number shortcuts `1` through `8` select Pan, Select, Brush, Text, Square, Diamond, Circle, and Arrow; letter shortcuts remain available.
 
 ## Testing
 

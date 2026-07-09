@@ -4,6 +4,7 @@ export type IconName =
   Tool | "clear" | "export" | "layerBackward" | "layerForward" | "layerToBack" | "layerToFront";
 
 const icons: Record<IconName, string> = {
+  pan: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V7.5a1.5 1.5 0 0 1 3 0V11"/><path d="M10 10V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M13 10V6.5a1.5 1.5 0 0 1 3 0V12"/><path d="M16 11V9.5a1.5 1.5 0 0 1 3 0V14c0 4-2.7 7-7 7h-1.1a5.5 5.5 0 0 1-4.4-2.2L3.8 15a1.6 1.6 0 0 1 2.5-2l1.7 2"/></svg>',
   select: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l12 9-6 1.2L8 20 5 3Z"/></svg>',
   brush:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20c3.9 0 5.7-1.2 5.7-3.8 0-1.4-1.1-2.5-2.5-2.5C4.6 13.7 4 15.8 4 20Z"/><path d="m9.4 14.1 8.9-8.9a1.9 1.9 0 0 1 2.7 2.7l-8.9 8.9"/></svg>',

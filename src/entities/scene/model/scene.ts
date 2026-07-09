@@ -6,6 +6,7 @@ import {
   type Point,
   type SceneSnapshot,
 } from "./elements";
+import { clampViewportZoom } from "./geometry";
 
 const finiteOrDefault = (value: unknown, fallback: number): number =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -130,7 +131,7 @@ export const normalizeScene = (scene: Partial<SceneSnapshot> | null | undefined)
     viewport: {
       x: finiteOrDefault(viewport?.x, DEFAULT_VIEWPORT.x),
       y: finiteOrDefault(viewport?.y, DEFAULT_VIEWPORT.y),
-      zoom: finiteOrDefault(viewport?.zoom, DEFAULT_VIEWPORT.zoom),
+      zoom: clampViewportZoom(finiteOrDefault(viewport?.zoom, DEFAULT_VIEWPORT.zoom)),
     },
     updatedAt: finiteOrDefault(scene.updatedAt, Date.now()),
   };
