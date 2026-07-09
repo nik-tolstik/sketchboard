@@ -389,7 +389,7 @@ export class EditorController {
       return;
     }
 
-    this.draft = this.updateDraft(this.draft, worldPoint);
+    this.draft = this.updateDraft(this.draft, worldPoint, event.shiftKey);
     this.renderCurrent({ preview: this.draft });
   }
 
@@ -432,8 +432,10 @@ export class EditorController {
       return;
     }
 
+    const worldPoint = this.getWorldPoint(event);
+    const draft = this.draft ? this.updateDraft(this.draft, worldPoint, event.shiftKey) : undefined;
     const createdElement =
-      this.draft && this.isDrawableDraft(this.draft) ? structuredClone(this.draft) : undefined;
+      draft && this.isDrawableDraft(draft) ? structuredClone(draft) : undefined;
 
     if (createdElement) {
       this.store.addElement(createdElement);
@@ -444,9 +446,9 @@ export class EditorController {
     this.releasePointer(event.pointerId);
 
     if (
-      createdElement?.type === "square" ||
+      createdElement?.type === "rectangle" ||
       createdElement?.type === "diamond" ||
-      createdElement?.type === "circle"
+      createdElement?.type === "ellipse"
     ) {
       this.switchToSelectAfterElementCreation();
       return;
@@ -634,22 +636,27 @@ export class EditorController {
       return this.applyCurrentStyle(createBrushElement(point));
     }
 
-    if (tool === "square" || tool === "diamond" || tool === "circle") {
+    if (tool === "rectangle" || tool === "diamond" || tool === "ellipse") {
       return this.applyCurrentStyle(createShapeElement(tool, point, point));
     }
 
     throw new Error("Only drawing tools create drafts.");
   }
 
-  private updateDraft(draft: DrawingElement, point: Point): DrawingElement {
+  private updateDraft(
+    draft: DrawingElement,
+    point: Point,
+    shouldConstrainShape = false,
+  ): DrawingElement {
     if (draft.type === "brush") {
       return this.updateBrush(draft, point);
     }
 
-    if (draft.type === "square" || draft.type === "diamond" || draft.type === "circle") {
+    if (draft.type === "rectangle" || draft.type === "diamond" || draft.type === "ellipse") {
       const width = point.x - draft.x;
       const height = point.y - draft.y;
-      const shouldConstrain = draft.type === "square" || draft.type === "circle";
+      const shouldConstrain =
+        (draft.type === "rectangle" || draft.type === "ellipse") && shouldConstrainShape;
       const constrained = shouldConstrain
         ? constrainToSquareDelta(width, height)
         : { width, height };

@@ -49,18 +49,25 @@ describe("scene", () => {
     ).toBe(MAX_VIEWPORT_ZOOM);
   });
 
-  it("migrates old rectangle and ellipse element types", () => {
+  it("normalizes shape element types", () => {
     const scene = normalizeScene({
       version: 1,
       elements: [
-        { id: "1", type: "rectangle" },
-        { id: "2", type: "ellipse" },
+        { id: "1", type: "square" },
+        { id: "2", type: "rectangle" },
+        { id: "3", type: "circle" },
+        { id: "4", type: "ellipse" },
       ] as never,
       viewport: DEFAULT_VIEWPORT,
       updatedAt: Date.now(),
     });
 
-    expect(scene.elements.map((element) => element.type)).toEqual(["square", "circle"]);
+    expect(scene.elements.map((element) => element.type)).toEqual([
+      "rectangle",
+      "rectangle",
+      "ellipse",
+      "ellipse",
+    ]);
   });
 
   it("adds layers to old persisted elements", () => {

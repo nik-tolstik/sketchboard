@@ -85,7 +85,9 @@ Shared code must not import from app, pages, widgets, features, or entities.
 - Text uses a temporary inline textarea positioned on the canvas. Committing creates a `text` element.
 - `Ctrl+Z` and `Ctrl+Shift+Z` undo/redo element changes.
 - Viewport pan and zoom changes do not create undo history entries.
-- Number shortcuts `1` through `8` select Pan, Select, Brush, Text, Square, Diamond, Circle, and Arrow; letter shortcuts remain available.
+- Number shortcuts `1` through `8` select Pan, Select, Brush, Text, Rectangle, Diamond, Ellipse, and Arrow; letter shortcuts remain available.
+- The Rectangle tool creates freeform rectangles by default; holding `Shift` while dragging constrains the rectangle to a square.
+- The Ellipse tool creates freeform ellipses by default; holding `Shift` while dragging constrains the ellipse to a circle.
 
 ## Testing
 

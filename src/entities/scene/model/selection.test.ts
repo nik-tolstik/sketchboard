@@ -15,10 +15,10 @@ import {
 
 describe("selection", () => {
   it("finds the latest element at a point when layers match", () => {
-    const square = createShapeElement("square", { x: 0, y: 0 }, { x: 80, y: 80 });
+    const rectangle = createShapeElement("rectangle", { x: 0, y: 0 }, { x: 80, y: 80 });
     const text = createTextElement({ x: 10, y: 10 }, "note");
 
-    expect(getElementAtPoint([square, text], { x: 20, y: 20 })?.id).toBe(text.id);
+    expect(getElementAtPoint([rectangle, text], { x: 20, y: 20 })?.id).toBe(text.id);
   });
 
   it("uses higher layers for hit-test priority", () => {
@@ -32,28 +32,36 @@ describe("selection", () => {
     ]);
   });
 
-  it("selects an unfilled square only by its border", () => {
-    const square = createShapeElement("square", { x: 0, y: 0 }, { x: 80, y: 80 });
+  it("selects an unfilled rectangle only by its border", () => {
+    const rectangle = createShapeElement("rectangle", { x: 0, y: 0 }, { x: 80, y: 60 });
 
-    expect(getElementAtPoint([square], { x: 40, y: 40 })).toBeUndefined();
-    expect(getElementAtPoint([square], { x: 2, y: 40 })?.id).toBe(square.id);
+    expect(getElementAtPoint([rectangle], { x: 40, y: 30 })).toBeUndefined();
+    expect(getElementAtPoint([rectangle], { x: 2, y: 30 })?.id).toBe(rectangle.id);
   });
 
-  it("selects a filled square by its full area", () => {
-    const square = createShapeElement("square", { x: 0, y: 0 }, { x: 80, y: 80 });
-    const filledSquare = {
-      ...square,
+  it("selects a filled rectangle by its full area", () => {
+    const rectangle = createShapeElement("rectangle", { x: 0, y: 0 }, { x: 80, y: 60 });
+    const filledRectangle = {
+      ...rectangle,
       style: {
-        ...square.style,
+        ...rectangle.style,
         fill: "#ffffff",
       },
     };
 
-    expect(getElementAtPoint([filledSquare], { x: 40, y: 40 })?.id).toBe(square.id);
+    expect(getElementAtPoint([filledRectangle], { x: 40, y: 30 })?.id).toBe(rectangle.id);
+  });
+
+  it("hit-tests ellipses by their curved geometry", () => {
+    const ellipse = createShapeElement("ellipse", { x: 0, y: 0 }, { x: 120, y: 60 });
+
+    expect(getElementAtPoint([ellipse], { x: 60, y: 30 })?.id).toBe(ellipse.id);
+    expect(getElementAtPoint([ellipse], { x: 60, y: 0 })?.id).toBe(ellipse.id);
+    expect(getElementAtPoint([ellipse], { x: 0, y: 0 })).toBeUndefined();
   });
 
   it("selects elements that intersect an area", () => {
-    const square = createShapeElement("square", { x: 0, y: 0 }, { x: 80, y: 80 });
+    const rectangle = createShapeElement("rectangle", { x: 0, y: 0 }, { x: 80, y: 80 });
     const arrow = createArrowElement([
       { x: 160, y: 160 },
       { x: 210, y: 160 },
@@ -61,10 +69,13 @@ describe("selection", () => {
     ]);
 
     expect(
-      getElementsIntersectingRect([square, arrow], { x: -10, y: -10, width: 120, height: 120 }).map(
-        (element) => element.id,
-      ),
-    ).toEqual([square.id]);
+      getElementsIntersectingRect([rectangle, arrow], {
+        x: -10,
+        y: -10,
+        width: 120,
+        height: 120,
+      }).map((element) => element.id),
+    ).toEqual([rectangle.id]);
   });
 
   it("hit-tests multi-point arrows through their line segments", () => {

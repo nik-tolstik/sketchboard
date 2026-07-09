@@ -84,15 +84,15 @@ export const isElementHit = (element: DrawingElement, point: Point, tolerance = 
     return isArrowHit(element, point, tolerance);
   }
 
-  if (element.type === "circle") {
-    return isCircleHit(element, point, tolerance);
+  if (element.type === "ellipse") {
+    return isEllipseHit(element, point, tolerance);
   }
 
   if (element.type === "diamond") {
     return isDiamondHit(element, point, tolerance);
   }
 
-  return isSquareHit(element, point, tolerance);
+  return isRectangleHit(element, point, tolerance);
 };
 
 export const getElementAtPoint = (
@@ -283,12 +283,12 @@ const isArrowHit = (element: ArrowElement, point: Point, tolerance: number): boo
   );
 };
 
-const isSquareHit = (element: ShapeElement, point: Point, tolerance: number): boolean =>
+const isRectangleHit = (element: ShapeElement, point: Point, tolerance: number): boolean =>
   hasVisibleFill(element.style.fill)
     ? isPointNearRect(point, element, tolerance)
     : isPointNearRectBorder(point, element, tolerance);
 
-const isCircleHit = (element: ShapeElement, point: Point, tolerance: number): boolean => {
+const isEllipseHit = (element: ShapeElement, point: Point, tolerance: number): boolean => {
   const rect = normalizeRect(element);
   const rx = rect.width / 2;
   const ry = rect.height / 2;

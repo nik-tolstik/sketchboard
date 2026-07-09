@@ -200,6 +200,7 @@ button {
 .editor-icon svg,
 .editor-icon path,
 .editor-icon rect,
+.editor-icon ellipse,
 .editor-icon circle {
   fill: none;
   stroke: currentColor;

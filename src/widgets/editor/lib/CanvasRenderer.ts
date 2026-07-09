@@ -173,13 +173,13 @@ export class CanvasRenderer {
       return;
     }
 
-    if (element.type === "square") {
+    if (element.type === "rectangle") {
       this.context.fillRect(rect.x, rect.y, rect.width, rect.height);
       this.context.strokeRect(rect.x, rect.y, rect.width, rect.height);
       return;
     }
 
-    if (element.type === "circle") {
+    if (element.type === "ellipse") {
       this.context.beginPath();
       this.context.ellipse(
         rect.x + rect.width / 2,

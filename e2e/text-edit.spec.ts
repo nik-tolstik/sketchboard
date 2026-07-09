@@ -10,6 +10,8 @@ type PersistedElement = {
   text?: string;
   layer?: number;
   points?: PersistedPoint[];
+  width?: number;
+  height?: number;
 };
 
 type PersistedViewport = {
@@ -141,6 +143,8 @@ const dragCanvas = async (
   await page.mouse.up();
 };
 
+const absoluteSize = (value: number | undefined): number => Math.abs(value ?? 0);
+
 const setFillColor = async (page: Page, color: string): Promise<void> => {
   await page.locator("[data-fill-color]").evaluate((element, value) => {
     const input = element as HTMLInputElement;
@@ -268,6 +272,78 @@ test("pans the canvas with the Pan tool without creating history entries", async
       y: (viewportBeforePan?.y ?? 0) + 40,
       zoom: viewportBeforePan?.zoom ?? 1,
     });
+});
+
+test("creates ellipses by default and circles when Shift is held", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Ellipse" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  await page.keyboard.press("7");
+  await expectActiveTool(page, "ellipse");
+  await page.keyboard.press("c");
+  await expectActiveTool(page, "ellipse");
+
+  await dragCanvas(page, { x: 220, y: 180 }, { x: 340, y: 240 });
+  await expectActiveTool(page, "select");
+  await expect.poll(() => readPersistedElements(page)).toHaveLength(1);
+
+  const [ellipse] = await readPersistedElements(page);
+
+  expect(ellipse?.type).toBe("ellipse");
+  expect(absoluteSize(ellipse?.width)).toBeGreaterThan(absoluteSize(ellipse?.height));
+
+  await page.keyboard.press("7");
+  await expectActiveTool(page, "ellipse");
+  await page.keyboard.down("Shift");
+  await dragCanvas(page, { x: 360, y: 180 }, { x: 440, y: 230 });
+  await page.keyboard.up("Shift");
+  await expectActiveTool(page, "select");
+  await expect.poll(() => readPersistedElements(page)).toHaveLength(2);
+
+  const elements = await readPersistedElements(page);
+  const shiftedEllipse = elements[1];
+
+  expect(shiftedEllipse?.type).toBe("ellipse");
+  expect(absoluteSize(shiftedEllipse?.width)).toBeCloseTo(absoluteSize(shiftedEllipse?.height));
+});
+
+test("creates rectangles by default and squares when Shift is held", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Rectangle" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  await page.keyboard.press("5");
+  await expectActiveTool(page, "rectangle");
+  await page.keyboard.press("s");
+  await expectActiveTool(page, "rectangle");
+
+  await dragCanvas(page, { x: 220, y: 180 }, { x: 340, y: 240 });
+  await expectActiveTool(page, "select");
+  await expect.poll(() => readPersistedElements(page)).toHaveLength(1);
+
+  const [rectangle] = await readPersistedElements(page);
+
+  expect(rectangle?.type).toBe("rectangle");
+  expect(absoluteSize(rectangle?.width)).toBeGreaterThan(absoluteSize(rectangle?.height));
+
+  await page.keyboard.press("5");
+  await expectActiveTool(page, "rectangle");
+  await page.keyboard.down("Shift");
+  await dragCanvas(page, { x: 360, y: 180 }, { x: 440, y: 230 });
+  await page.keyboard.up("Shift");
+  await expectActiveTool(page, "select");
+  await expect.poll(() => readPersistedElements(page)).toHaveLength(2);
+
+  const elements = await readPersistedElements(page);
+  const shiftedRectangle = elements[1];
+
+  expect(shiftedRectangle?.type).toBe("rectangle");
+  expect(absoluteSize(shiftedRectangle?.width)).toBeCloseTo(absoluteSize(shiftedRectangle?.height));
 });
 
 test("pans with the mouse wheel without creating history entries", async ({ page }) => {
@@ -504,7 +580,7 @@ test("selects through unfilled rectangle interiors and respects filled ones", as
   await textEditor.press("Control+Enter");
   await expect.poll(() => readPersistedTexts(page)).toEqual(["Inner label"]);
 
-  await page.getByRole("button", { name: "Square" }).click();
+  await page.getByRole("button", { name: "Rectangle" }).click();
   await dragCanvas(page, { x: 280, y: 220 }, { x: 560, y: 360 });
   await expect.poll(() => readPersistedElements(page)).toHaveLength(2);
   await expectActiveTool(page, "select");
@@ -513,7 +589,7 @@ test("selects through unfilled rectangle interiors and respects filled ones", as
   await canvas.click({ position: { x: textPoint.x + 8, y: textPoint.y + 8 } });
   await page.keyboard.press("Delete");
 
-  await expect.poll(() => readPersistedElements(page)).toMatchObject([{ type: "square" }]);
+  await expect.poll(() => readPersistedElements(page)).toMatchObject([{ type: "rectangle" }]);
   await expect.poll(() => readPersistedTexts(page)).toEqual([]);
 
   await page.getByRole("button", { name: "Clear" }).click();
@@ -527,7 +603,7 @@ test("selects through unfilled rectangle interiors and respects filled ones", as
   await expect.poll(() => readPersistedTexts(page)).toEqual(["Covered label"]);
 
   await setFillColor(page, "#ffffff");
-  await page.getByRole("button", { name: "Square" }).click();
+  await page.getByRole("button", { name: "Rectangle" }).click();
   await dragCanvas(page, { x: 280, y: 220 }, { x: 560, y: 360 });
   await expect.poll(() => readPersistedElements(page)).toHaveLength(2);
   await expectActiveTool(page, "select");
@@ -637,7 +713,7 @@ test("moves selected elements with the bottom layer panel", async ({ page }) => 
   await textEditor.press("Control+Enter");
 
   await setFillColor(page, "#ffffff");
-  await page.getByRole("button", { name: "Square" }).click();
+  await page.getByRole("button", { name: "Rectangle" }).click();
   await dragCanvas(page, { x: 280, y: 220 }, { x: 560, y: 360 });
   await expect.poll(() => readPersistedLayers(page)).toEqual([0, 1]);
   await expectActiveTool(page, "select");

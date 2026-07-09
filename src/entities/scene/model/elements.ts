@@ -1,4 +1,4 @@
-export type DrawingElementType = "brush" | "text" | "square" | "diamond" | "circle" | "arrow";
+export type DrawingElementType = "brush" | "text" | "rectangle" | "diamond" | "ellipse" | "arrow";
 export type Tool = "pan" | "select" | DrawingElementType;
 
 export type Point = {
@@ -43,7 +43,7 @@ export type TextElement = BaseElement & {
 };
 
 export type ShapeElement = BaseElement & {
-  type: "square" | "diamond" | "circle";
+  type: "rectangle" | "diamond" | "ellipse";
   x: number;
   y: number;
   width: number;

@@ -73,10 +73,10 @@ const normalizeElement = (
   layerFallback: number,
 ): DrawingElement => {
   const migratedElement =
-    element.type === "rectangle"
-      ? { ...element, type: "square" }
-      : element.type === "ellipse"
-        ? { ...element, type: "circle" }
+    element.type === "square"
+      ? { ...element, type: "rectangle" }
+      : element.type === "circle"
+        ? { ...element, type: "ellipse" }
         : element;
 
   if (migratedElement.type === "arrow") {
