@@ -7,6 +7,7 @@
 - Write code comments in English.
 - Keep the app on React + Vite with TypeScript, shadcn/ui, Tailwind CSS, Vitest, ESLint, and Prettier.
 - Do not add Angular, Vue, or another UI framework unless explicitly requested.
+- Use shadcn/ui components from `src/shared/ui` for standard controls such as buttons, toggles, sliders, badges, separators, and tooltips; add missing shadcn components through the CLI instead of hand-rolling equivalent markup.
 - Prefer small domain helpers and tests over adding editor behavior directly to React components.
 
 ## Architecture Pointers

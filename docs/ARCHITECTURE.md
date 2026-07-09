@@ -9,8 +9,8 @@ The project follows the FSD import rule: a layer can import only from layers bel
 1. `src/app/entrypoint/main.tsx` mounts the React app.
 2. `src/app/App.tsx` applies app-level providers and renders the board page.
 3. `src/pages/board` selects the editor widget for the current screen.
-4. `src/widgets/editor/ui/EditorWidget.tsx` renders the toolbar controls, object settings panel, canvas stage, inline text editor, and layer controls.
-5. `src/widgets/editor/model/useEditorRuntime.ts` wires React refs/state to IndexedDB persistence, global keyboard shortcuts, the canvas renderer, and the editor controller.
+4. `src/widgets/editor/ui/EditorWidget.tsx` mounts the editor runtime provider and delegates the editor surface to focused UI components.
+5. `src/widgets/editor/model/EditorRuntimeProvider.tsx` and `src/widgets/editor/model/useEditorRuntime.ts` expose runtime state/actions through selector-based context while wiring refs/state to IndexedDB persistence, global keyboard shortcuts, the canvas renderer, and the editor controller.
 6. `EditorController` receives pointer and keyboard-driven commands, translates screen coordinates into world coordinates, and decides which entity operation should happen.
 7. `SceneStore` owns the current scene, undo/redo stacks, and autosave scheduling.
 8. `CanvasRenderer` draws the canvas background, latest scene snapshot, and transient UI overlays onto the `<canvas>`.
@@ -37,14 +37,16 @@ The app layer can import from any lower layer, but should stay thin.
 
 `src/widgets/editor` contains the complete editor surface:
 
-- `ui/EditorWidget.tsx`: shadcn/ui composition for toolbar, actions, object settings, canvas stage, and layer controls.
+- `ui/EditorWidget.tsx`: runtime provider boundary for the editor widget.
+- `ui/EditorRuntimeView.tsx`: shadcn/ui composition for toolbar, actions, object settings, canvas stage, and layer controls.
 - `ui/EditorIcon.tsx` and `ui/icons.ts`: editor-specific icon rendering and icon registry.
-- `model/useEditorRuntime.ts`: lifecycle glue between React refs/state and imperative editor classes.
+- `model/EditorRuntimeProvider.tsx` and `model/useEditorRuntime.ts`: `use-context-selector` backed lifecycle glue between React refs/state and imperative editor classes.
 - `model/EditorController.ts`: tool state, pointer interactions, selection drag, copy/paste, text creation, panning, and export.
 - `lib/CanvasRenderer.ts`: imperative canvas drawing for the white canvas background, elements, previews, selection outlines, and selection boxes.
 - `config/editorConfig.ts`: toolbar and layer-control metadata.
 
 Keep editor-specific runtime code here. Reusable scene data and mutations belong in `entities/scene`.
+For standard editor controls, prefer shadcn/ui primitives from `src/shared/ui` before writing custom markup; add missing primitives with the shadcn CLI so controls such as sliders, buttons, toggles, badges, separators, and tooltips stay consistent.
 
 ### Entities
 
