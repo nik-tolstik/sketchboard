@@ -11,6 +11,7 @@ import {
 
 import { TOOLS } from "../config/editorConfig";
 import { CanvasRenderer, type CanvasRenderOptions } from "../lib/CanvasRenderer";
+import { getInlineTextEditorMetrics } from "../lib/textEditorMetrics";
 import { EditorController } from "./EditorController";
 
 const TEXT_EDITOR_VERTICAL_OFFSET = 2;
@@ -79,21 +80,20 @@ export function useEditorRuntime() {
 
       const viewportZoom = latestScene.viewport.zoom;
       const baseFontSize = options.fontSize ?? 24;
-      const editorFontSize = Math.max(14, baseFontSize * viewportZoom);
       let isOpen = true;
       let shouldCommit = true;
 
       const resizeEditor = (): void => {
-        const lines = textEditor.value.split("\n");
-        const longestLineLength = Math.max(1, ...lines.map((line) => line.length));
-        const width = Math.min(
-          Math.max(longestLineLength * editorFontSize * 0.62 + 14, 120 * viewportZoom),
-          460,
-        );
-        const height = Math.max(lines.length * editorFontSize * 1.3 + 6, 32 * viewportZoom);
+        const metrics = getInlineTextEditorMetrics({
+          text: textEditor.value,
+          fontSize: baseFontSize,
+          viewportZoom,
+        });
 
-        textEditor.style.width = `${width}px`;
-        textEditor.style.height = `${height}px`;
+        textEditor.style.width = `${metrics.width}px`;
+        textEditor.style.height = `${metrics.height}px`;
+        textEditor.style.fontSize = `${metrics.fontSize}px`;
+        textEditor.style.transform = `scale(${metrics.scale})`;
       };
 
       const close = (): void => {
@@ -126,7 +126,6 @@ export function useEditorRuntime() {
       textEditor.style.left = `${screenPoint.x}px`;
       textEditor.style.top = `${screenPoint.y - TEXT_EDITOR_VERTICAL_OFFSET}px`;
       textEditor.style.color = options.textColor ?? "var(--text)";
-      textEditor.style.fontSize = `${editorFontSize}px`;
       textEditor.addEventListener("input", resizeEditor);
       textEditor.onblur = close;
       textEditor.onkeydown = (event) => {

@@ -37,6 +37,12 @@ type CanvasRegion = {
   height: number;
 };
 
+type TextEditorVisualMetrics = {
+  fontSize: number;
+  scale: number;
+  visualFontSize: number;
+};
+
 const TRANSPARENT_COLOR = "rgba(255, 255, 255, 0)";
 
 const readPersistedScene = async (page: Page): Promise<PersistedScene | undefined> =>
@@ -87,6 +93,20 @@ const readPersistedTexts = async (page: Page): Promise<string[]> => {
 
   return elements.filter((element) => element.type === "text").map((element) => element.text ?? "");
 };
+
+const readTextEditorVisualMetrics = async (page: Page): Promise<TextEditorVisualMetrics> =>
+  page.locator("[data-text-editor]").evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    const transform =
+      style.transform === "none" ? new DOMMatrixReadOnly() : new DOMMatrixReadOnly(style.transform);
+    const fontSize = Number.parseFloat(style.fontSize);
+
+    return {
+      fontSize,
+      scale: transform.a,
+      visualFontSize: fontSize * transform.a,
+    };
+  });
 
 const readPersistedLayers = async (page: Page): Promise<number[]> => {
   const elements = await readPersistedElements(page);
@@ -173,6 +193,16 @@ const wheelCanvas = async (
 
   await canvas.hover({ position });
   await page.mouse.wheel(0, deltaY);
+};
+
+const zoomOutToMinimum = async (page: Page): Promise<number> => {
+  for (let index = 0; index < 12; index += 1) {
+    await page.locator("[data-zoom-out]").click();
+  }
+
+  await expect.poll(() => readPersistedZoom(page)).toBeCloseTo(0.25, 4);
+
+  return readPersistedZoom(page);
 };
 
 const dispatchTouchpadPinchWheel = async (
@@ -644,6 +674,44 @@ test("creates and edits text after zooming", async ({ page }) => {
   await canvas.dblclick({ position: { x: textPoint.x + 6, y: textPoint.y + 6 } });
   await expect(textEditor).toBeVisible();
   await expect(textEditor).toHaveValue("Zoomed note");
+});
+
+test("keeps inline text editor size aligned at minimum zoom", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  const canvas = page.locator("[data-canvas]");
+  const textEditor = page.locator("[data-text-editor]");
+  const textPoint = { x: 320, y: 260 };
+
+  const minimumZoom = await zoomOutToMinimum(page);
+
+  await page.getByRole("button", { name: "Text" }).click();
+  await canvas.click({ position: textPoint });
+  await expect(textEditor).toBeVisible();
+
+  const createMetrics = await readTextEditorVisualMetrics(page);
+
+  expect(createMetrics.fontSize).toBeCloseTo(24, 4);
+  expect(createMetrics.scale).toBeCloseTo(minimumZoom, 4);
+  expect(createMetrics.visualFontSize).toBeCloseTo(24 * minimumZoom, 4);
+
+  await textEditor.fill("Tiny note");
+  await textEditor.press("Control+Enter");
+  await expect.poll(() => readPersistedTexts(page)).toEqual(["Tiny note"]);
+
+  await canvas.dblclick({ position: { x: textPoint.x + 6, y: textPoint.y + 6 } });
+  await expect(textEditor).toBeVisible();
+  await expect(textEditor).toHaveValue("Tiny note");
+
+  const editMetrics = await readTextEditorVisualMetrics(page);
+
+  expect(editMetrics.fontSize).toBeCloseTo(24, 4);
+  expect(editMetrics.scale).toBeCloseTo(minimumZoom, 4);
+  expect(editMetrics.visualFontSize).toBeCloseTo(24 * minimumZoom, 4);
 });
 
 test("edits canvas text on double click", async ({ page }) => {
