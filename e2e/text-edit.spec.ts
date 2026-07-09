@@ -12,6 +12,10 @@ type PersistedElement = {
   points?: PersistedPoint[];
   width?: number;
   height?: number;
+  style?: {
+    fill?: string;
+    stroke?: string;
+  };
 };
 
 type PersistedViewport = {
@@ -154,6 +158,15 @@ const setFillColor = async (page: Page, color: string): Promise<void> => {
   }, color);
 };
 
+const setStrokeColor = async (page: Page, color: string): Promise<void> => {
+  await page.locator("[data-stroke-color]").evaluate((element, value) => {
+    const input = element as HTMLInputElement;
+
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }, color);
+};
+
 const wheelCanvas = async (
   page: Page,
   position: { x: number; y: number },
@@ -271,6 +284,54 @@ test("pans the canvas with the Pan tool without creating history entries", async
       x: (viewportBeforePan?.x ?? 0) + 70,
       y: (viewportBeforePan?.y ?? 0) + 40,
       zoom: viewportBeforePan?.zoom ?? 1,
+    });
+});
+
+test("shows object settings for drawing tools and selected objects", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  const canvas = page.locator("[data-canvas]");
+  const objectSettingsPanel = page.locator("[data-object-settings-panel]");
+  const textEditor = page.locator("[data-text-editor]");
+
+  await expectActiveTool(page, "select");
+  await expect(objectSettingsPanel).toBeHidden();
+
+  await page.keyboard.press("3");
+  await expectActiveTool(page, "brush");
+  await expect(objectSettingsPanel).toBeVisible();
+
+  await page.keyboard.press("2");
+  await expectActiveTool(page, "select");
+  await expect(objectSettingsPanel).toBeHidden();
+
+  await page.getByRole("button", { name: "Text" }).click();
+  await expect(objectSettingsPanel).toBeVisible();
+  await canvas.click({ position: { x: 320, y: 260 } });
+  await expect(textEditor).toBeVisible();
+  await textEditor.fill("Styled note");
+  await textEditor.press("Control+Enter");
+
+  await expectActiveTool(page, "select");
+  await expect(objectSettingsPanel).toBeVisible();
+  await expect.poll(() => readPersistedElements(page)).toHaveLength(1);
+
+  await setStrokeColor(page, "#336699");
+  await setFillColor(page, "#ccddaa");
+
+  await expect
+    .poll(async () => {
+      const [element] = await readPersistedElements(page);
+
+      return element?.style;
+    })
+    .toMatchObject({
+      stroke: "#336699",
+      fill: "#ccddaa",
     });
 });
 

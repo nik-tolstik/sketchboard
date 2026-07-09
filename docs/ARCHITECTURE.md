@@ -9,7 +9,7 @@ The project follows the FSD import rule: a layer can import only from layers bel
 1. `src/app/entrypoint/main.tsx` mounts the React app.
 2. `src/app/App.tsx` applies app-level providers and renders the board page.
 3. `src/pages/board` selects the editor widget for the current screen.
-4. `src/widgets/editor/ui/EditorWidget.tsx` renders the toolbar controls, color inputs, canvas stage, inline text editor, and layer controls.
+4. `src/widgets/editor/ui/EditorWidget.tsx` renders the toolbar controls, object settings panel, canvas stage, inline text editor, and layer controls.
 5. `src/widgets/editor/model/useEditorRuntime.ts` wires React refs/state to IndexedDB persistence, global keyboard shortcuts, the canvas renderer, and the editor controller.
 6. `EditorController` receives pointer and keyboard-driven commands, translates screen coordinates into world coordinates, and decides which entity operation should happen.
 7. `SceneStore` owns the current scene, undo/redo stacks, and autosave scheduling.
@@ -37,7 +37,7 @@ The app layer can import from any lower layer, but should stay thin.
 
 `src/widgets/editor` contains the complete editor surface:
 
-- `ui/EditorWidget.tsx`: shadcn/ui composition for toolbar, actions, canvas stage, and layer controls.
+- `ui/EditorWidget.tsx`: shadcn/ui composition for toolbar, actions, object settings, canvas stage, and layer controls.
 - `ui/EditorIcon.tsx` and `ui/icons.ts`: editor-specific icon rendering and icon registry.
 - `model/useEditorRuntime.ts`: lifecycle glue between React refs/state and imperative editor classes.
 - `model/EditorController.ts`: tool state, pointer interactions, selection drag, copy/paste, text creation, panning, and export.
@@ -79,6 +79,7 @@ Shared code must not import from app, pages, widgets, features, or entities.
 - Phone and touch-screen two-finger pinch zooms the viewport around the gesture midpoint.
 - The zoom controls and `Ctrl`/`Cmd` with `+`, `-`, or `0` zoom the viewport around the canvas center.
 - Select tool supports click selection, Shift-click additive toggling, area selection, and dragging selected elements.
+- Object color settings appear for drawing tools and selected elements.
 - `Ctrl+C` copies selected elements into an in-memory clipboard.
 - `Ctrl+V` pastes copies at the last cursor world position.
 - `Delete` and `Backspace` remove selected elements.

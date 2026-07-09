@@ -259,6 +259,32 @@ button {
   cursor: pointer;
 }
 
+.object-settings-panel {
+  position: fixed;
+  top: 76px;
+  left: 16px;
+  z-index: 9;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 118px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--editor-surface);
+  box-shadow: 0 12px 30px rgba(16, 16, 16, 0.1);
+  backdrop-filter: blur(18px);
+}
+
+.object-settings-panel[hidden] {
+  display: none;
+}
+
+.object-settings-panel .color-control {
+  justify-content: space-between;
+  width: 100%;
+}
+
 .text-button {
   grid-auto-flow: column;
   gap: 7px;
@@ -451,6 +477,19 @@ button {
   .toolbar {
     max-width: calc(100vw - 20px);
     overflow-x: auto;
+  }
+
+  .object-settings-panel {
+    top: 124px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-width: calc(100vw - 20px);
+    flex-direction: row;
+  }
+
+  .object-settings-panel .color-control {
+    flex: 1 1 0;
   }
 
   .help-panel {

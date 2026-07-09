@@ -1,14 +1,13 @@
-import { useEffect, useRef } from "react";
-
 import type { SaveState, Tool } from "@/entities/scene";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Separator } from "@/shared/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/shared/ui/toggle-group";
 
-import { LAYER_CONTROLS, TOOLS, getToolTitle } from "../config/editorConfig";
+import { LAYER_CONTROLS, TOOLS, getToolTitle, isObjectTool } from "../config/editorConfig";
 import { useEditorRuntime } from "../model/useEditorRuntime";
 import { EditorIcon } from "./EditorIcon";
+import { ObjectSettingsPanel } from "./ObjectSettingsPanel";
 
 const saveStateLabels: Record<SaveState, string> = {
   idle: "Ready",
@@ -39,45 +38,8 @@ export function EditorWidget() {
     zoomOut,
     resetZoom,
   } = useEditorRuntime();
-  const strokeColorInputRef = useRef<HTMLInputElement>(null);
-  const fillColorInputRef = useRef<HTMLInputElement>(null);
   const zoomPercent = `${Math.round(zoom * 100)}%`;
-
-  useEffect(() => {
-    const input = strokeColorInputRef.current;
-
-    if (!input) {
-      return undefined;
-    }
-
-    const updateStrokeColor = (): void => setStrokeColor(input.value);
-
-    input.addEventListener("change", updateStrokeColor);
-    input.addEventListener("input", updateStrokeColor);
-
-    return () => {
-      input.removeEventListener("change", updateStrokeColor);
-      input.removeEventListener("input", updateStrokeColor);
-    };
-  }, [setStrokeColor]);
-
-  useEffect(() => {
-    const input = fillColorInputRef.current;
-
-    if (!input) {
-      return undefined;
-    }
-
-    const updateFillColor = (): void => setFillColor(input.value);
-
-    input.addEventListener("change", updateFillColor);
-    input.addEventListener("input", updateFillColor);
-
-    return () => {
-      input.removeEventListener("change", updateFillColor);
-      input.removeEventListener("input", updateFillColor);
-    };
-  }, [setFillColor]);
+  const showObjectSettings = isObjectTool(activeTool) || hasSelection;
 
   return (
     <main className="app-shell">
@@ -125,26 +87,6 @@ export function EditorWidget() {
             {saveStateLabels[saveState]}
           </Badge>
           <Separator orientation="vertical" />
-          <label className="color-control" title="Stroke color">
-            <span>Stroke</span>
-            <input
-              ref={strokeColorInputRef}
-              data-stroke-color
-              onChange={(event) => setStrokeColor(event.target.value)}
-              type="color"
-              value={strokeColor}
-            />
-          </label>
-          <label className="color-control" title="Fill color">
-            <span>Fill</span>
-            <input
-              ref={fillColorInputRef}
-              data-fill-color
-              onChange={(event) => setFillColor(event.target.value)}
-              type="color"
-              value={fillColor}
-            />
-          </label>
           <Button
             className="text-button"
             data-clear
@@ -182,6 +124,13 @@ export function EditorWidget() {
           data-text-editor
           rows={1}
           spellCheck={false}
+        />
+        <ObjectSettingsPanel
+          fillColor={fillColor}
+          setFillColor={setFillColor}
+          setStrokeColor={setStrokeColor}
+          strokeColor={strokeColor}
+          visible={showObjectSettings}
         />
         <aside className="help-panel" aria-label="Canvas tips">
           <span>Wheel moves, Ctrl/Cmd wheel or pinch zooms</span>
