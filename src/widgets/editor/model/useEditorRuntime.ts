@@ -4,6 +4,7 @@ import {
   DEFAULT_STYLE,
   IndexedDbSceneRepository,
   SceneStore,
+  getTextElementWidth,
   type LayerOrderCommand,
   type SaveState,
   type Tool,
@@ -12,6 +13,7 @@ import {
 import { TOOLS } from "../config/editorConfig";
 import { CanvasRenderer, type CanvasRenderOptions } from "../lib/CanvasRenderer";
 import { getInlineTextEditorMetrics } from "../lib/textEditorMetrics";
+import { measureTextElementWidth } from "../lib/textMeasurement";
 import { EditorController } from "./EditorController";
 
 const DEFAULT_STROKE_COLOR = DEFAULT_STYLE.stroke;
@@ -82,11 +84,20 @@ export function useEditorRuntime() {
       let isOpen = true;
       let shouldCommit = true;
 
+      const measureTextWidth = (text: string, fontSize: number): number => {
+        const context = canvas.getContext("2d");
+
+        return context
+          ? measureTextElementWidth(context, text, fontSize)
+          : getTextElementWidth(text, fontSize);
+      };
+
       const resizeEditor = (): void => {
         const metrics = getInlineTextEditorMetrics({
           text: textEditor.value,
           fontSize: baseFontSize,
           viewportZoom,
+          measureTextWidth,
         });
 
         textEditor.style.width = `${metrics.width}px`;

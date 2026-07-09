@@ -42,14 +42,25 @@ describe("getInlineTextEditorMetrics", () => {
     expect(multilineMetrics.height).toBeGreaterThan(singleLineMetrics.height);
   });
 
-  it("includes the canvas text inset in editor height", () => {
+  it("uses line height for single-line editor height", () => {
     const metrics = getInlineTextEditorMetrics({
       text: "One line",
       fontSize: 24,
       viewportZoom: 1,
     });
 
-    expect(metrics.height).toBeCloseTo(36.2, 4);
+    expect(metrics.height).toBeCloseTo(31.2, 4);
+  });
+
+  it("uses measured text width when a canvas measurer is available", () => {
+    const metrics = getInlineTextEditorMetrics({
+      text: "Nikita",
+      fontSize: 24,
+      viewportZoom: 1,
+      measureTextWidth: () => 66,
+    });
+
+    expect(metrics.width).toBe(66);
   });
 
   it("does not cap long single-line editor width", () => {

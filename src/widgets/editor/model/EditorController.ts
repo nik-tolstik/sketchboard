@@ -5,6 +5,7 @@ import {
   createBrushElement,
   createShapeElement,
   createTextElement,
+  getTextElementWidth,
   updateArrowPoint,
   updateTextElementText,
   clampViewportZoom,
@@ -37,6 +38,7 @@ import type { SceneStore } from "@/entities/scene";
 import type { LayerOrderCommand } from "@/entities/scene";
 import type { Viewport } from "@/entities/scene";
 import type { CanvasRenderOptions } from "../lib/CanvasRenderer";
+import { measureTextElementWidth } from "../lib/textMeasurement";
 
 type RenderPreview = (options?: CanvasRenderOptions) => void;
 type TogglePanning = (isPanning: boolean) => void;
@@ -326,7 +328,11 @@ export class EditorController {
           const trimmedText = text.trim();
 
           if (trimmedText.length > 0) {
-            const element = this.applyCurrentStyle(createTextElement(worldPoint, trimmedText));
+            const draftElement = createTextElement(worldPoint, trimmedText);
+            const element = this.applyCurrentStyle({
+              ...draftElement,
+              width: this.measureTextWidth(trimmedText, draftElement.fontSize),
+            });
             this.store.addElement(element);
             this.selectedElementIds = new Set([element.id]);
             this.switchToSelectAfterElementCreation();
@@ -1171,15 +1177,28 @@ export class EditorController {
       return;
     }
 
-    if (currentElement.text === trimmedText) {
+    const width = this.measureTextWidth(trimmedText, currentElement.fontSize);
+
+    if (currentElement.text === trimmedText && Math.abs(currentElement.width - width) < 0.5) {
       this.finishTextElementEdit(originalElement.id);
       return;
     }
 
-    const updatedElement = updateTextElementText(currentElement, trimmedText);
+    const updatedElement = {
+      ...updateTextElementText(currentElement, trimmedText),
+      width,
+    };
     this.store.replaceElement(updatedElement);
     this.selectedElementIds = new Set([updatedElement.id]);
     this.finishTextElementEdit(updatedElement.id);
+  }
+
+  private measureTextWidth(text: string, fontSize: number): number {
+    const context = this.canvas.getContext("2d");
+
+    return context
+      ? measureTextElementWidth(context, text, fontSize)
+      : getTextElementWidth(text, fontSize);
   }
 
   private finishTextElementEdit(elementId: string): void {

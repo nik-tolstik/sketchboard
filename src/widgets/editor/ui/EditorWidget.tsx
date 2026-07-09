@@ -184,7 +184,7 @@ export function EditorWidget() {
         />
         <textarea
           ref={textEditorRef}
-          className="absolute z-20 box-border m-0 resize-none overflow-hidden rounded-none border-0 bg-transparent py-0 pr-0 pl-[3px] font-['Virgil','Comic_Sans_MS','Segoe_Print',sans-serif] leading-[1.3] text-[var(--editor-text)] outline-none origin-top-left whitespace-pre break-normal focus:shadow-none [&:not([data-open=true])]:hidden"
+          className="absolute z-20 box-border m-0 resize-none overflow-hidden rounded-none border-0 bg-transparent py-0 pr-0 pl-[3px] text-[var(--editor-text)] outline-none origin-top-left whitespace-pre break-normal focus:shadow-none [&:not([data-open=true])]:hidden"
           data-text-editor
           rows={1}
           spellCheck={false}

@@ -37,6 +37,15 @@ type CanvasRegion = {
   height: number;
 };
 
+type CanvasPixelBounds = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  width: number;
+  height: number;
+};
+
 type TextEditorVisualMetrics = {
   fontSize: number;
   scale: number;
@@ -47,13 +56,14 @@ type TextEditorLineMetrics = {
   backgroundColor: string;
   borderTopWidth: string;
   clientHeight: number;
+  fontFamily: string;
+  lineHeight: string;
   scrollHeight: number;
   whiteSpace: string;
   wrap: string | null;
 };
 
 const LONG_UNINTERRUPTED_TEXT = "123456789123456789123456789123456789";
-const TEXT_CONTENT_INSET_Y = 5;
 const TEXT_LINE_HEIGHT = 1.3;
 const TEXT_RENDERER_HORIZONTAL_INSET = 6;
 const TRANSPARENT_COLOR = "rgba(255, 255, 255, 0)";
@@ -130,6 +140,8 @@ const readTextEditorLineMetrics = async (page: Page): Promise<TextEditorLineMetr
       backgroundColor: style.backgroundColor,
       borderTopWidth: style.borderTopWidth,
       clientHeight: textarea.clientHeight,
+      fontFamily: style.fontFamily,
+      lineHeight: style.lineHeight,
       scrollHeight: textarea.scrollHeight,
       whiteSpace: style.whiteSpace,
       wrap: textarea.getAttribute("wrap"),
@@ -141,6 +153,8 @@ const expectTextEditorToStayOnOneVisualLine = async (page: Page): Promise<void> 
 
   expect(metrics.backgroundColor).toBe("rgba(0, 0, 0, 0)");
   expect(metrics.borderTopWidth).toBe("0px");
+  expect(metrics.fontFamily).toContain("Comic Sans MS");
+  expect(Number.parseFloat(metrics.lineHeight)).toBeCloseTo(24 * TEXT_LINE_HEIGHT, 1);
   expect(metrics.wrap).toBe("off");
   expect(metrics.whiteSpace).toBe("pre");
   expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 2);
@@ -208,6 +222,63 @@ const countDarkCanvasPixels = async (page: Page, region: CanvasRegion): Promise<
     }
 
     return darkPixelCount;
+  }, region);
+
+const readDarkCanvasPixelBounds = async (
+  page: Page,
+  region: CanvasRegion,
+): Promise<CanvasPixelBounds | undefined> =>
+  page.locator("[data-canvas]").evaluate((element, currentRegion) => {
+    const canvas = element as HTMLCanvasElement;
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      return undefined;
+    }
+
+    const bounds = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / bounds.width;
+    const scaleY = canvas.height / bounds.height;
+    const image = context.getImageData(
+      Math.round(currentRegion.x * scaleX),
+      Math.round(currentRegion.y * scaleY),
+      Math.round(currentRegion.width * scaleX),
+      Math.round(currentRegion.height * scaleY),
+    );
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    for (let y = 0; y < image.height; y += 1) {
+      for (let x = 0; x < image.width; x += 1) {
+        const index = (y * image.width + x) * 4;
+        const red = image.data[index] ?? 255;
+        const green = image.data[index + 1] ?? 255;
+        const blue = image.data[index + 2] ?? 255;
+        const alpha = image.data[index + 3] ?? 0;
+
+        if (alpha > 0 && red < 90 && green < 90 && blue < 90) {
+          minX = Math.min(minX, x / scaleX);
+          minY = Math.min(minY, y / scaleY);
+          maxX = Math.max(maxX, x / scaleX);
+          maxY = Math.max(maxY, y / scaleY);
+        }
+      }
+    }
+
+    if (!Number.isFinite(minX)) {
+      return undefined;
+    }
+
+    return {
+      minX,
+      minY,
+      maxX,
+      maxY,
+      width: maxX - minX,
+      height: maxY - minY,
+    };
   }, region);
 
 const dragCanvas = async (
@@ -769,6 +840,49 @@ test("keeps inline text editor size aligned at minimum zoom", async ({ page }) =
   expect(editMetrics.visualFontSize).toBeCloseTo(24 * minimumZoom, 4);
 });
 
+test("keeps selected short text bounds tight and vertically centered", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  const canvas = page.locator("[data-canvas]");
+  const textEditor = page.locator("[data-text-editor]");
+  const textPoint = { x: 320, y: 260 };
+
+  await page.getByRole("button", { name: "Text" }).click();
+  await canvas.click({ position: textPoint });
+  await expect(textEditor).toBeVisible();
+  await textEditor.fill("Nikita");
+  await textEditor.press("Control+Enter");
+
+  await expect.poll(() => readPersistedTexts(page)).toEqual(["Nikita"]);
+  await expectActiveTool(page, "select");
+
+  const [persistedText] = await readPersistedElements(page);
+  const renderedTextWidth = await measureCanvasTextWidth(page, "Nikita");
+  const darkBounds = await readDarkCanvasPixelBounds(page, {
+    x: textPoint.x,
+    y: textPoint.y,
+    width: 100,
+    height: 50,
+  });
+
+  expect(persistedText?.type).toBe("text");
+  expect(persistedText?.width ?? 0).toBeCloseTo(
+    renderedTextWidth + TEXT_RENDERER_HORIZONTAL_INSET,
+    4,
+  );
+  expect(persistedText?.width ?? 0).toBeLessThan(90);
+  expect(darkBounds).toBeDefined();
+
+  const visualTextCenterY = ((darkBounds?.minY ?? 0) + (darkBounds?.maxY ?? 0)) / 2;
+  const selectedBoundsCenterY = (24 * TEXT_LINE_HEIGHT) / 2;
+
+  expect(Math.abs(visualTextCenterY - selectedBoundsCenterY)).toBeLessThanOrEqual(1.5);
+});
+
 test("keeps long uninterrupted text on one visual editor line", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
@@ -808,7 +922,7 @@ test("keeps long uninterrupted text on one visual editor line", async ({ page })
   expect(editorBox?.x).toBeCloseTo(textPoint.x, 0);
   expect(editorBox?.y).toBeCloseTo(textPoint.y, 0);
   expect(editorBox?.width).toBeCloseTo(persistedText?.width ?? 0, 0);
-  expect(editorBox?.height).toBeCloseTo(24 * TEXT_LINE_HEIGHT + TEXT_CONTENT_INSET_Y, 0);
+  expect(editorBox?.height).toBeCloseTo(24 * TEXT_LINE_HEIGHT, 0);
 });
 
 test("edits canvas text on double click", async ({ page }) => {
@@ -843,7 +957,7 @@ test("edits canvas text on double click", async ({ page }) => {
 
   expect(editorBox?.x).toBeCloseTo(textPoint.x, 0);
   expect(editorBox?.y).toBeCloseTo(textPoint.y, 0);
-  expect(editorBox?.height).toBeCloseTo(24 * TEXT_LINE_HEIGHT + TEXT_CONTENT_INSET_Y, 0);
+  expect(editorBox?.height).toBeCloseTo(24 * TEXT_LINE_HEIGHT, 0);
   await expect
     .poll(() => countDarkCanvasPixels(page, textRegion))
     .toBeLessThan(renderedTextPixels * 0.25);

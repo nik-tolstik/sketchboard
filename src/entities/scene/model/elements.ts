@@ -97,7 +97,7 @@ export const getTextElementWidth = (text: string, fontSize = DEFAULT_TEXT_FONT_S
 };
 
 export const getTextElementHeight = (text: string, fontSize = DEFAULT_TEXT_FONT_SIZE): number =>
-  text.split("\n").length * fontSize * TEXT_LINE_HEIGHT + TEXT_CONTENT_INSET_Y;
+  text.split("\n").length * fontSize * TEXT_LINE_HEIGHT;
 
 export const createElementId = (): string =>
   typeof crypto !== "undefined" && "randomUUID" in crypto

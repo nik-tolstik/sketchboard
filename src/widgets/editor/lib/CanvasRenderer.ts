@@ -20,6 +20,8 @@ import {
   type Rect,
 } from "@/entities/scene";
 
+import { getCanvasTextFont } from "./textMeasurement";
+
 export type CanvasRenderOptions = {
   preview?: DrawingElement;
   previews?: DrawingElement[];
@@ -146,7 +148,7 @@ export class CanvasRenderer {
   }
 
   private drawText(element: TextElement): void {
-    this.context.font = `${element.fontSize}px "Virgil", "Comic Sans MS", "Segoe Print", sans-serif`;
+    this.context.font = getCanvasTextFont(element.fontSize);
     this.context.textBaseline = "top";
     this.context.fillStyle = element.style.stroke;
 

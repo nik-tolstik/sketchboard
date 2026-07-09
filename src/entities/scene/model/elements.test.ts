@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   createArrowElement,
   createTextElement,
+  getTextElementHeight,
   getTextElementWidth,
+  TEXT_LINE_HEIGHT,
   updateTextElementText,
 } from "./elements";
 
@@ -25,6 +27,10 @@ describe("elements", () => {
 
   it("estimates multiline text width from the longest line", () => {
     expect(getTextElementWidth("short\nlonger line")).toBe(getTextElementWidth("longer line"));
+  });
+
+  it("keeps text bounds height to line-height content", () => {
+    expect(getTextElementHeight("Nikita", 24)).toBeCloseTo(24 * TEXT_LINE_HEIGHT, 4);
   });
 
   it("creates arrows with draggable points", () => {
