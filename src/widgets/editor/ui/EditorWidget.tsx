@@ -2,6 +2,7 @@ import type { SaveState, Tool } from "@/entities/scene";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Separator } from "@/shared/ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import { ToggleGroup, ToggleGroupItem } from "@/shared/ui/toggle-group";
 
 import { LAYER_CONTROLS, TOOLS, getToolTitle, isObjectTool } from "../config/editorConfig";
@@ -64,16 +65,25 @@ export function EditorWidget() {
           variant="outline"
         >
           {TOOLS.map((tool) => (
-            <ToggleGroupItem
-              key={tool.id}
-              aria-label={tool.label}
-              className="icon-button editor-tool-button"
-              data-tool={tool.id}
-              title={getToolTitle(tool)}
-              value={tool.id}
-            >
-              <EditorIcon name={tool.id} />
-            </ToggleGroupItem>
+            <Tooltip key={tool.id}>
+              <TooltipTrigger
+                delay={0}
+                render={
+                  <ToggleGroupItem
+                    aria-label={tool.label}
+                    className="icon-button editor-tool-button"
+                    data-tool={tool.id}
+                    value={tool.id}
+                  />
+                }
+              >
+                <EditorIcon name={tool.id} />
+                <span aria-hidden="true" className="editor-tool-button__shortcut">
+                  {tool.numericShortcut}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{getToolTitle(tool)}</TooltipContent>
+            </Tooltip>
           ))}
         </ToggleGroup>
 

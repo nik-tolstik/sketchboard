@@ -287,6 +287,38 @@ test("pans the canvas with the Pan tool without creating history entries", async
     });
 });
 
+test("shows toolbar shortcut digits and immediate tooltips", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+
+  const toolButtons = page.locator(".editor-tool-button");
+
+  await expect(toolButtons).toHaveCount(8);
+  await expect(page.locator(".editor-tool-button__shortcut")).toHaveText([
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+  ]);
+  await expect(page.locator(".editor-tool-button[title]")).toHaveCount(0);
+
+  const panTool = page.locator('.editor-tool-button[data-tool="pan"]');
+  const tooltip = page.getByText("Pan (1, H)");
+
+  await panTool.hover();
+  await expect(tooltip).toBeVisible();
+
+  await page.mouse.move(500, 500);
+  await expect(tooltip).toBeHidden();
+
+  await panTool.focus();
+  await expect(tooltip).toBeVisible();
+});
+
 test("shows object settings for drawing tools and selected objects", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Text" })).toBeVisible();

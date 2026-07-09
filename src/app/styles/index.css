@@ -185,6 +185,26 @@ button {
   color: #ffffff;
 }
 
+.editor-tool-button {
+  position: relative;
+}
+
+.editor-tool-button__shortcut {
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  display: inline-grid;
+  place-items: center;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  color: currentColor;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+}
+
 .editor-icon {
   display: inline-grid;
   place-items: center;
