@@ -79,15 +79,25 @@ export const DEFAULT_VIEWPORT: Viewport = {
 
 export const DEFAULT_LAYER = 0;
 export const MIN_ARROW_POINTS = 3;
+export const DEFAULT_TEXT_FONT_SIZE = 24;
+export const TEXT_CONTENT_INSET_X = 3;
+export const TEXT_CONTENT_INSET_Y = 5;
+export const TEXT_LINE_HEIGHT = 1.3;
+export const TEXT_MIN_WIDTH = 120;
+export const TEXT_WIDTH_RATIO = 0.62;
+export const TEXT_WIDTH_PADDING = 14;
 
-const MIN_TEXT_WIDTH = 120;
-const TEXT_WIDTH_RATIO = 14 / 24;
-
-export const getTextElementWidth = (text: string, fontSize = 24): number => {
+export const getTextElementWidth = (text: string, fontSize = DEFAULT_TEXT_FONT_SIZE): number => {
   const longestLineLength = Math.max(1, ...text.split("\n").map((line) => line.length));
 
-  return Math.max(MIN_TEXT_WIDTH, longestLineLength * fontSize * TEXT_WIDTH_RATIO);
+  return Math.max(
+    TEXT_MIN_WIDTH,
+    longestLineLength * fontSize * TEXT_WIDTH_RATIO + TEXT_WIDTH_PADDING,
+  );
 };
+
+export const getTextElementHeight = (text: string, fontSize = DEFAULT_TEXT_FONT_SIZE): number =>
+  text.split("\n").length * fontSize * TEXT_LINE_HEIGHT + TEXT_CONTENT_INSET_Y;
 
 export const createElementId = (): string =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -124,7 +134,7 @@ export const createTextElement = (
     x: point.x,
     y: point.y,
     text,
-    fontSize: 24,
+    fontSize: DEFAULT_TEXT_FONT_SIZE,
     width: getTextElementWidth(text),
     createdAt: timestamp,
     updatedAt: timestamp,

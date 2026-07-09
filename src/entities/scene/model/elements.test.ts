@@ -7,6 +7,10 @@ import {
 } from "./elements";
 
 describe("elements", () => {
+  it("expands long uninterrupted text beyond the legacy editor cap", () => {
+    expect(getTextElementWidth("123456789123456789123456789123456789")).toBeGreaterThan(460);
+  });
+
   it("updates text content while preserving element identity", () => {
     const element = createTextElement({ x: 10, y: 20 }, "old");
     const updated = updateTextElementText(element, "new content");

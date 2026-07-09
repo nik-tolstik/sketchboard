@@ -1,5 +1,6 @@
 import {
   createElementId,
+  getTextElementHeight,
   type ArrowElement,
   type BrushElement,
   type DrawingElement,
@@ -17,8 +18,6 @@ import {
   normalizeRect,
   type Rect,
 } from "./geometry";
-
-const TEXT_LINE_HEIGHT = 1.3;
 
 export const getElementsInLayerOrder = (elements: DrawingElement[]): DrawingElement[] =>
   elements
@@ -38,7 +37,7 @@ export const getElementBounds = (element: DrawingElement): Rect => {
       x: element.x,
       y: element.y,
       width: element.width,
-      height: element.fontSize * TEXT_LINE_HEIGHT * element.text.split("\n").length,
+      height: getTextElementHeight(element.text, element.fontSize),
     };
   }
 

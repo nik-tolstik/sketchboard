@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_VIEWPORT } from "./elements";
+import { DEFAULT_VIEWPORT, getTextElementWidth } from "./elements";
 import { MAX_VIEWPORT_ZOOM, MIN_VIEWPORT_ZOOM } from "./geometry";
 import { createEmptyScene, normalizeScene } from "./scene";
 
@@ -83,6 +83,20 @@ describe("scene", () => {
     });
 
     expect(scene.elements.map((element) => element.layer)).toEqual([0, 8, 9]);
+  });
+
+  it("widens old persisted text elements to the current computed width", () => {
+    const text = "123456789123456789123456789123456789";
+    const scene = normalizeScene({
+      version: 1,
+      elements: [{ id: "1", type: "text", text, fontSize: 24, width: 460 }] as never,
+      viewport: DEFAULT_VIEWPORT,
+      updatedAt: Date.now(),
+    });
+    const [element] = scene.elements;
+
+    expect(element?.type).toBe("text");
+    expect(element?.type === "text" ? element.width : undefined).toBe(getTextElementWidth(text));
   });
 
   it("migrates old persisted arrows to points", () => {

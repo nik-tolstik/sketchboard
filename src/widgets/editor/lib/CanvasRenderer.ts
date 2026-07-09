@@ -8,6 +8,9 @@ import type {
   Viewport,
 } from "@/entities/scene";
 import {
+  TEXT_CONTENT_INSET_X,
+  TEXT_CONTENT_INSET_Y,
+  TEXT_LINE_HEIGHT,
   getArrowHead,
   getArrowHeadSegment,
   getDiamondPoints,
@@ -26,9 +29,6 @@ export type CanvasRenderOptions = {
 };
 
 const CANVAS_BACKGROUND = "#ffffff";
-const TEXT_CONTENT_INSET_X = 3;
-const TEXT_CONTENT_INSET_Y = 4;
-const TEXT_LINE_HEIGHT = 1.3;
 
 export class CanvasRenderer {
   private context: CanvasRenderingContext2D;
@@ -271,11 +271,13 @@ export class CanvasRenderer {
       }
 
       const bounds = normalizeRect(getElementBounds(element));
+      const elementOutlinePadding = element.type === "text" ? 0 : outlinePadding;
+
       this.context.strokeRect(
-        bounds.x - outlinePadding,
-        bounds.y - outlinePadding,
-        bounds.width + outlinePadding * 2,
-        bounds.height + outlinePadding * 2,
+        bounds.x - elementOutlinePadding,
+        bounds.y - elementOutlinePadding,
+        bounds.width + elementOutlinePadding * 2,
+        bounds.height + elementOutlinePadding * 2,
       );
     }
 

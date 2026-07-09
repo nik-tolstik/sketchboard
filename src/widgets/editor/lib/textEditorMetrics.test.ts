@@ -41,4 +41,24 @@ describe("getInlineTextEditorMetrics", () => {
 
     expect(multilineMetrics.height).toBeGreaterThan(singleLineMetrics.height);
   });
+
+  it("includes the canvas text inset in editor height", () => {
+    const metrics = getInlineTextEditorMetrics({
+      text: "One line",
+      fontSize: 24,
+      viewportZoom: 1,
+    });
+
+    expect(metrics.height).toBeCloseTo(36.2, 4);
+  });
+
+  it("does not cap long single-line editor width", () => {
+    const metrics = getInlineTextEditorMetrics({
+      text: "123456789123456789123456789123456789",
+      fontSize: 24,
+      viewportZoom: 1,
+    });
+
+    expect(metrics.width).toBeGreaterThan(460);
+  });
 });

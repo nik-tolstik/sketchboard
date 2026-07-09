@@ -1,7 +1,9 @@
 import {
+  DEFAULT_TEXT_FONT_SIZE,
   DEFAULT_LAYER,
   DEFAULT_VIEWPORT,
   MIN_ARROW_POINTS,
+  getTextElementWidth,
   type DrawingElement,
   type Point,
   type SceneSnapshot,
@@ -91,6 +93,24 @@ const normalizeElement = (
       ...arrowElement,
       points: normalizeArrowPoints(migratedArrow),
       layer: finiteOrDefault(migratedArrow.layer, layerFallback),
+    } as DrawingElement;
+  }
+
+  if (migratedElement.type === "text") {
+    const migratedText = migratedElement as Record<string, unknown>;
+    const text = typeof migratedText.text === "string" ? migratedText.text : "";
+    const fontSize = finiteOrDefault(migratedText.fontSize, DEFAULT_TEXT_FONT_SIZE);
+    const width = Math.max(
+      finiteOrDefault(migratedText.width, 0),
+      getTextElementWidth(text, fontSize),
+    );
+
+    return {
+      ...migratedText,
+      text,
+      fontSize,
+      width,
+      layer: finiteOrDefault(migratedText.layer, layerFallback),
     } as DrawingElement;
   }
 

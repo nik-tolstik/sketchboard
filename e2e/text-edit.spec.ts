@@ -43,6 +43,19 @@ type TextEditorVisualMetrics = {
   visualFontSize: number;
 };
 
+type TextEditorLineMetrics = {
+  backgroundColor: string;
+  borderTopWidth: string;
+  clientHeight: number;
+  scrollHeight: number;
+  whiteSpace: string;
+  wrap: string | null;
+};
+
+const LONG_UNINTERRUPTED_TEXT = "123456789123456789123456789123456789";
+const TEXT_CONTENT_INSET_Y = 5;
+const TEXT_LINE_HEIGHT = 1.3;
+const TEXT_RENDERER_HORIZONTAL_INSET = 6;
 const TRANSPARENT_COLOR = "rgba(255, 255, 255, 0)";
 
 const readPersistedScene = async (page: Page): Promise<PersistedScene | undefined> =>
@@ -107,6 +120,48 @@ const readTextEditorVisualMetrics = async (page: Page): Promise<TextEditorVisual
       visualFontSize: fontSize * transform.a,
     };
   });
+
+const readTextEditorLineMetrics = async (page: Page): Promise<TextEditorLineMetrics> =>
+  page.locator("[data-text-editor]").evaluate((element) => {
+    const textarea = element as HTMLTextAreaElement;
+    const style = window.getComputedStyle(textarea);
+
+    return {
+      backgroundColor: style.backgroundColor,
+      borderTopWidth: style.borderTopWidth,
+      clientHeight: textarea.clientHeight,
+      scrollHeight: textarea.scrollHeight,
+      whiteSpace: style.whiteSpace,
+      wrap: textarea.getAttribute("wrap"),
+    };
+  });
+
+const expectTextEditorToStayOnOneVisualLine = async (page: Page): Promise<void> => {
+  const metrics = await readTextEditorLineMetrics(page);
+
+  expect(metrics.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+  expect(metrics.borderTopWidth).toBe("0px");
+  expect(metrics.wrap).toBe("off");
+  expect(metrics.whiteSpace).toBe("pre");
+  expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 2);
+};
+
+const measureCanvasTextWidth = async (page: Page, text: string, fontSize = 24): Promise<number> =>
+  page.locator("[data-canvas]").evaluate(
+    (element, options) => {
+      const canvas = element as HTMLCanvasElement;
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        return 0;
+      }
+
+      context.font = `${options.fontSize}px "Virgil", "Comic Sans MS", "Segoe Print", sans-serif`;
+
+      return context.measureText(options.text).width;
+    },
+    { text, fontSize },
+  );
 
 const readPersistedLayers = async (page: Page): Promise<number[]> => {
   const elements = await readPersistedElements(page);
@@ -714,6 +769,48 @@ test("keeps inline text editor size aligned at minimum zoom", async ({ page }) =
   expect(editMetrics.visualFontSize).toBeCloseTo(24 * minimumZoom, 4);
 });
 
+test("keeps long uninterrupted text on one visual editor line", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  const canvas = page.locator("[data-canvas]");
+  const textEditor = page.locator("[data-text-editor]");
+  const textPoint = { x: 320, y: 260 };
+
+  await page.getByRole("button", { name: "Text" }).click();
+  await canvas.click({ position: textPoint });
+  await expect(textEditor).toBeVisible();
+
+  await textEditor.fill(LONG_UNINTERRUPTED_TEXT);
+  await expectTextEditorToStayOnOneVisualLine(page);
+
+  await textEditor.press("Control+Enter");
+  await expect.poll(() => readPersistedTexts(page)).toEqual([LONG_UNINTERRUPTED_TEXT]);
+
+  const [persistedText] = await readPersistedElements(page);
+  const renderedTextWidth = await measureCanvasTextWidth(page, LONG_UNINTERRUPTED_TEXT);
+
+  expect(persistedText?.type).toBe("text");
+  expect(persistedText?.width ?? 0).toBeGreaterThanOrEqual(
+    renderedTextWidth + TEXT_RENDERER_HORIZONTAL_INSET,
+  );
+
+  await canvas.dblclick({ position: { x: textPoint.x + 6, y: textPoint.y + 6 } });
+  await expect(textEditor).toBeVisible();
+  await expect(textEditor).toHaveValue(LONG_UNINTERRUPTED_TEXT);
+  await expectTextEditorToStayOnOneVisualLine(page);
+
+  const editorBox = await textEditor.boundingBox();
+
+  expect(editorBox?.x).toBeCloseTo(textPoint.x, 0);
+  expect(editorBox?.y).toBeCloseTo(textPoint.y, 0);
+  expect(editorBox?.width).toBeCloseTo(persistedText?.width ?? 0, 0);
+  expect(editorBox?.height).toBeCloseTo(24 * TEXT_LINE_HEIGHT + TEXT_CONTENT_INSET_Y, 0);
+});
+
 test("edits canvas text on double click", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
@@ -745,7 +842,8 @@ test("edits canvas text on double click", async ({ page }) => {
   const editorBox = await textEditor.boundingBox();
 
   expect(editorBox?.x).toBeCloseTo(textPoint.x, 0);
-  expect(editorBox?.y).toBeCloseTo(textPoint.y - 2, 0);
+  expect(editorBox?.y).toBeCloseTo(textPoint.y, 0);
+  expect(editorBox?.height).toBeCloseTo(24 * TEXT_LINE_HEIGHT + TEXT_CONTENT_INSET_Y, 0);
   await expect
     .poll(() => countDarkCanvasPixels(page, textRegion))
     .toBeLessThan(renderedTextPixels * 0.25);

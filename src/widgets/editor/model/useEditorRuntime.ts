@@ -14,7 +14,6 @@ import { CanvasRenderer, type CanvasRenderOptions } from "../lib/CanvasRenderer"
 import { getInlineTextEditorMetrics } from "../lib/textEditorMetrics";
 import { EditorController } from "./EditorController";
 
-const TEXT_EDITOR_VERTICAL_OFFSET = 2;
 const DEFAULT_STROKE_COLOR = DEFAULT_STYLE.stroke;
 const DEFAULT_FILL_COLOR = DEFAULT_STYLE.fill;
 const DEFAULT_LINE_WIDTH = DEFAULT_STYLE.lineWidth;
@@ -124,7 +123,7 @@ export function useEditorRuntime() {
       textEditor.value = options.initialText ?? "";
       textEditor.dataset.open = "true";
       textEditor.style.left = `${screenPoint.x}px`;
-      textEditor.style.top = `${screenPoint.y - TEXT_EDITOR_VERTICAL_OFFSET}px`;
+      textEditor.style.top = `${screenPoint.y}px`;
       textEditor.style.color = options.textColor ?? "var(--text)";
       textEditor.addEventListener("input", resizeEditor);
       textEditor.onblur = close;

@@ -136,6 +136,7 @@ export function EditorWidget() {
           data-text-editor
           rows={1}
           spellCheck={false}
+          wrap="off"
         />
         <ObjectSettingsPanel
           fillColor={fillColor}
