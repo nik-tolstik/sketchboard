@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  DEFAULT_TEXT_ALIGN,
   DEFAULT_STYLE,
   IndexedDbSceneRepository,
   SceneStore,
   getTextElementWidth,
   type LayerOrderCommand,
   type SaveState,
+  type TextAlign,
   type Tool,
 } from "@/entities/scene";
 
@@ -14,18 +16,28 @@ import { TOOLS } from "../config/editorConfig";
 import { CanvasRenderer, type CanvasRenderOptions } from "../lib/CanvasRenderer";
 import { getInlineTextEditorMetrics } from "../lib/textEditorMetrics";
 import { measureTextElementWidth } from "../lib/textMeasurement";
-import { EditorController } from "./EditorController";
+import { EditorController, type ObjectSettingsSnapshot } from "./EditorController";
 
 const DEFAULT_STROKE_COLOR = DEFAULT_STYLE.stroke;
 const DEFAULT_FILL_COLOR = DEFAULT_STYLE.fill;
 const DEFAULT_LINE_WIDTH = DEFAULT_STYLE.lineWidth;
+const DEFAULT_OPACITY = DEFAULT_STYLE.opacity;
 
 type TextEditorOptions = {
   initialText?: string;
   fontSize?: number;
   textColor?: string;
+  textAlign?: TextAlign;
   onCommit: (text: string) => void;
   onCancel?: () => void;
+};
+
+const initialMixedObjectSettings: ObjectSettingsSnapshot["mixed"] = {
+  fill: false,
+  lineWidth: false,
+  opacity: false,
+  stroke: false,
+  textAlign: false,
 };
 
 const isTextInputTarget = (target: EventTarget | null): boolean => {
@@ -46,7 +58,12 @@ export function useEditorRuntime() {
   const [strokeColor, setStrokeColorState] = useState(DEFAULT_STROKE_COLOR);
   const [fillColor, setFillColorState] = useState(DEFAULT_FILL_COLOR);
   const [lineWidth, setLineWidthState] = useState(DEFAULT_LINE_WIDTH);
+  const [opacity, setOpacityState] = useState(DEFAULT_OPACITY);
+  const [textAlign, setTextAlignState] = useState<TextAlign>(DEFAULT_TEXT_ALIGN);
   const [hasSelection, setHasSelection] = useState(false);
+  const [hasTextSelection, setHasTextSelection] = useState(false);
+  const [selectionCount, setSelectionCount] = useState(0);
+  const [mixedObjectSettings, setMixedObjectSettings] = useState(initialMixedObjectSettings);
   const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
@@ -69,8 +86,18 @@ export function useEditorRuntime() {
       renderer.render(latestScene, options);
     };
 
-    const updateSelectionState = (): void => {
-      setHasSelection(controller.getSelectedElementIds().size > 0);
+    const updateObjectSettingsState = (): void => {
+      const settings = controller.getObjectSettings();
+
+      setHasSelection(settings.hasSelection);
+      setHasTextSelection(settings.hasTextSelection);
+      setSelectionCount(settings.selectionCount);
+      setStrokeColorState(settings.style.stroke);
+      setFillColorState(settings.style.fill);
+      setLineWidthState(settings.style.lineWidth);
+      setOpacityState(settings.style.opacity);
+      setTextAlignState(settings.textAlign);
+      setMixedObjectSettings(settings.mixed);
     };
 
     const openTextEditor = (
@@ -136,6 +163,7 @@ export function useEditorRuntime() {
       textEditor.style.left = `${screenPoint.x}px`;
       textEditor.style.top = `${screenPoint.y}px`;
       textEditor.style.color = options.textColor ?? "var(--text)";
+      textEditor.style.textAlign = options.textAlign ?? DEFAULT_TEXT_ALIGN;
       textEditor.addEventListener("input", resizeEditor);
       textEditor.onblur = close;
       textEditor.onkeydown = (event) => {
@@ -168,14 +196,14 @@ export function useEditorRuntime() {
         setIsPanning(nextIsPanning);
       },
       openTextEditor,
-      updateSelectionState,
+      updateObjectSettingsState,
       setActiveTool,
     );
 
     controllerRef.current = controller;
     storeRef.current = store;
     setActiveTool(controller.getTool());
-    updateSelectionState();
+    updateObjectSettingsState();
 
     const resizeObserver = new ResizeObserver(() => {
       renderer.resize();
@@ -310,6 +338,9 @@ export function useEditorRuntime() {
       storeRef.current = null;
       setIsPanning(false);
       setHasSelection(false);
+      setHasTextSelection(false);
+      setSelectionCount(0);
+      setMixedObjectSettings(initialMixedObjectSettings);
       setZoom(1);
     };
   }, []);
@@ -333,6 +364,18 @@ export function useEditorRuntime() {
     controllerRef.current?.setStyle({ lineWidth: nextLineWidth });
   }, []);
 
+  const setOpacity = useCallback((nextOpacity: number): void => {
+    const opacityValue = Math.min(Math.max(nextOpacity, 0), 1);
+
+    setOpacityState(opacityValue);
+    controllerRef.current?.setStyle({ opacity: opacityValue });
+  }, []);
+
+  const setTextAlign = useCallback((nextTextAlign: TextAlign): void => {
+    setTextAlignState(nextTextAlign);
+    controllerRef.current?.setTextAlign(nextTextAlign);
+  }, []);
+
   const clearScene = useCallback((): void => {
     storeRef.current?.clear();
     controllerRef.current?.refreshSelection();
@@ -340,6 +383,14 @@ export function useEditorRuntime() {
 
   const exportPng = useCallback((): void => {
     controllerRef.current?.exportPng();
+  }, []);
+
+  const copySelection = useCallback((): void => {
+    controllerRef.current?.duplicateSelection();
+  }, []);
+
+  const deleteSelection = useCallback((): void => {
+    controllerRef.current?.deleteSelection();
   }, []);
 
   const zoomIn = useCallback((): void => {
@@ -362,17 +413,26 @@ export function useEditorRuntime() {
     activeTool,
     canvasRef,
     clearScene,
+    copySelection,
+    deleteSelection,
     exportPng,
     fillColor,
     hasSelection,
+    hasTextSelection,
     isPanning,
     lineWidth,
+    mixedObjectSettings,
+    opacity,
     saveState,
     setFillColor,
     setLineWidth,
+    setOpacity,
     setStrokeColor,
+    setTextAlign,
     setTool,
+    selectionCount,
     strokeColor,
+    textAlign,
     textEditorRef,
     updateSelectionLayer,
     zoom,

@@ -1,7 +1,11 @@
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   ArrowRight,
   BringToFront,
   Circle,
+  Copy,
   Diamond,
   Download,
   Hand,
@@ -21,7 +25,18 @@ import { createElement, type ReactElement } from "react";
 import type { Tool } from "@/entities/scene";
 
 export type IconName =
-  Tool | "clear" | "export" | "layerBackward" | "layerForward" | "layerToBack" | "layerToFront";
+  | Tool
+  | "alignCenter"
+  | "alignLeft"
+  | "alignRight"
+  | "clear"
+  | "copy"
+  | "delete"
+  | "export"
+  | "layerBackward"
+  | "layerForward"
+  | "layerToBack"
+  | "layerToFront";
 
 const icons: Record<IconName, LucideIcon> = {
   pan: Hand,
@@ -32,7 +47,12 @@ const icons: Record<IconName, LucideIcon> = {
   diamond: Diamond,
   ellipse: Circle,
   arrow: ArrowRight,
+  alignCenter: AlignCenter,
+  alignLeft: AlignLeft,
+  alignRight: AlignRight,
   clear: Trash2,
+  copy: Copy,
+  delete: Trash2,
   export: Download,
   layerBackward: MoveDown,
   layerForward: MoveUp,

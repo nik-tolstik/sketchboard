@@ -1,17 +1,48 @@
 import {
+  DEFAULT_STYLE,
+  DEFAULT_TEXT_ALIGN,
   DEFAULT_TEXT_FONT_SIZE,
   DEFAULT_LAYER,
   DEFAULT_VIEWPORT,
   MIN_ARROW_POINTS,
   getTextElementWidth,
   type DrawingElement,
+  type ElementStyle,
   type Point,
   type SceneSnapshot,
+  type TextAlign,
 } from "./elements";
 import { clampViewportZoom } from "./geometry";
 
 const finiteOrDefault = (value: unknown, fallback: number): number =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.min(Math.max(value, min), max);
+
+const positiveOrDefault = (value: unknown, fallback: number): number => {
+  const numberValue = finiteOrDefault(value, fallback);
+
+  return numberValue > 0 ? numberValue : fallback;
+};
+
+const stringOrDefault = (value: unknown, fallback: string): string =>
+  typeof value === "string" ? value : fallback;
+
+const textAlignOrDefault = (value: unknown): TextAlign =>
+  value === "center" || value === "right" ? value : DEFAULT_TEXT_ALIGN;
+
+const normalizeStyle = (value: unknown): ElementStyle => {
+  const style = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+
+  return {
+    stroke: stringOrDefault(style.stroke, DEFAULT_STYLE.stroke),
+    fill: stringOrDefault(style.fill, DEFAULT_STYLE.fill),
+    lineWidth: positiveOrDefault(style.lineWidth, DEFAULT_STYLE.lineWidth),
+    opacity: clamp(finiteOrDefault(style.opacity, DEFAULT_STYLE.opacity), 0, 1),
+    roughness: finiteOrDefault(style.roughness, DEFAULT_STYLE.roughness),
+  };
+};
 
 const pointOrDefault = (value: unknown, fallback: Point): Point => {
   if (!value || typeof value !== "object") {
@@ -92,6 +123,7 @@ const normalizeElement = (
     return {
       ...arrowElement,
       points: normalizeArrowPoints(migratedArrow),
+      style: normalizeStyle(migratedArrow.style),
       layer: finiteOrDefault(migratedArrow.layer, layerFallback),
     } as DrawingElement;
   }
@@ -108,15 +140,20 @@ const normalizeElement = (
     return {
       ...migratedText,
       text,
+      textAlign: textAlignOrDefault(migratedText.textAlign),
       fontSize,
       width,
+      style: normalizeStyle(migratedText.style),
       layer: finiteOrDefault(migratedText.layer, layerFallback),
     } as DrawingElement;
   }
 
+  const migratedRecord = migratedElement as Record<string, unknown>;
+
   return {
-    ...migratedElement,
-    layer: finiteOrDefault(migratedElement.layer, layerFallback),
+    ...migratedRecord,
+    style: normalizeStyle(migratedRecord.style),
+    layer: finiteOrDefault(migratedRecord.layer, layerFallback),
   } as DrawingElement;
 };
 

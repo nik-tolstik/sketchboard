@@ -36,17 +36,26 @@ export function EditorWidget() {
     activeTool,
     canvasRef,
     clearScene,
+    copySelection,
+    deleteSelection,
     exportPng,
     fillColor,
     hasSelection,
+    hasTextSelection,
     isPanning,
     lineWidth,
+    mixedObjectSettings,
+    opacity,
     saveState,
     setFillColor,
     setLineWidth,
+    setOpacity,
     setStrokeColor,
+    setTextAlign,
     setTool,
+    selectionCount,
     strokeColor,
+    textAlign,
     textEditorRef,
     updateSelectionLayer,
     zoom,
@@ -191,13 +200,22 @@ export function EditorWidget() {
           wrap="off"
         />
         <ObjectSettingsPanel
+          copySelection={copySelection}
+          deleteSelection={deleteSelection}
           fillColor={fillColor}
           hasSelection={hasSelection}
           lineWidth={lineWidth}
+          mixedObjectSettings={mixedObjectSettings}
+          opacity={opacity}
+          selectionCount={selectionCount}
           setFillColor={setFillColor}
           setLineWidth={setLineWidth}
+          setOpacity={setOpacity}
           setStrokeColor={setStrokeColor}
+          setTextAlign={setTextAlign}
+          showTextAlignment={activeTool === "text" || hasTextSelection}
           strokeColor={strokeColor}
+          textAlign={textAlign}
           updateSelectionLayer={updateSelectionLayer}
           visible={showObjectSettings}
         />

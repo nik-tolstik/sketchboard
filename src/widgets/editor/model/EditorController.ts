@@ -1,4 +1,5 @@
 import {
+  DEFAULT_TEXT_ALIGN,
   DEFAULT_STYLE,
   MIN_ARROW_POINTS,
   createArrowElement,
@@ -15,6 +16,7 @@ import {
   type ElementStyle,
   type Point,
   type ShapeElement,
+  type TextAlign,
   type TextElement,
   type Tool,
 } from "@/entities/scene";
@@ -23,6 +25,7 @@ import {
   constrainToSquareDelta,
   distance,
   getElementAtPoint,
+  getElementsBounds,
   getElementsInLayerOrder,
   getElementsIntersectingRect,
   normalizeRect,
@@ -48,8 +51,24 @@ type TextEditorOptions = {
   initialText?: string;
   fontSize?: number;
   textColor?: string;
+  textAlign?: TextAlign;
   onCommit: (text: string) => void;
   onCancel?: () => void;
+};
+
+export type ObjectSettingsSnapshot = {
+  selectionCount: number;
+  hasSelection: boolean;
+  hasTextSelection: boolean;
+  style: Pick<ElementStyle, "fill" | "lineWidth" | "opacity" | "stroke">;
+  textAlign: TextAlign;
+  mixed: {
+    fill: boolean;
+    lineWidth: boolean;
+    opacity: boolean;
+    stroke: boolean;
+    textAlign: boolean;
+  };
 };
 
 type SelectionDrag = {
@@ -90,6 +109,7 @@ type PinchGesture = {
 
 const MIN_SHAPE_SIZE = 6;
 const MIN_SELECTION_DRAG_DISTANCE = 4;
+const DUPLICATE_OFFSET = 24;
 const MIDDLE_MOUSE_BUTTON = 1;
 const PRIMARY_MOUSE_BUTTON = 0;
 const WHEEL_ZOOM_SPEED = 0.002;
@@ -100,7 +120,9 @@ export class EditorController {
     stroke: DEFAULT_STYLE.stroke,
     fill: DEFAULT_STYLE.fill,
     lineWidth: DEFAULT_STYLE.lineWidth,
+    opacity: DEFAULT_STYLE.opacity,
   };
+  private currentTextAlign: TextAlign = DEFAULT_TEXT_ALIGN;
   private draft: DrawingElement | undefined;
   private isPanning = false;
   private selectionDrag: SelectionDrag | undefined;
@@ -171,12 +193,70 @@ export class EditorController {
     return this.activeTool;
   }
 
+  getObjectSettings(): ObjectSettingsSnapshot {
+    const selectedElements = this.getSelectedElements();
+
+    if (selectedElements.length === 0) {
+      return {
+        selectionCount: 0,
+        hasSelection: false,
+        hasTextSelection: false,
+        style: this.getCurrentStyle(),
+        textAlign: this.currentTextAlign,
+        mixed: {
+          fill: false,
+          lineWidth: false,
+          opacity: false,
+          stroke: false,
+          textAlign: false,
+        },
+      };
+    }
+
+    const textElements = selectedElements.filter(
+      (element): element is TextElement => element.type === "text",
+    );
+    const firstElement = selectedElements[0];
+    const firstTextElement = textElements[0];
+
+    return {
+      selectionCount: selectedElements.length,
+      hasSelection: true,
+      hasTextSelection: textElements.length > 0,
+      style: {
+        fill: this.getCommonStyleValue(selectedElements, "fill") ?? firstElement.style.fill,
+        lineWidth:
+          this.getCommonStyleValue(selectedElements, "lineWidth") ?? firstElement.style.lineWidth,
+        opacity:
+          this.getCommonStyleValue(selectedElements, "opacity") ?? firstElement.style.opacity,
+        stroke: this.getCommonStyleValue(selectedElements, "stroke") ?? firstElement.style.stroke,
+      },
+      textAlign:
+        this.getCommonTextAlign(textElements) ??
+        firstTextElement?.textAlign ??
+        this.currentTextAlign,
+      mixed: {
+        fill: this.hasMixedStyleValue(selectedElements, "fill"),
+        lineWidth: this.hasMixedStyleValue(selectedElements, "lineWidth"),
+        opacity: this.hasMixedStyleValue(selectedElements, "opacity"),
+        stroke: this.hasMixedStyleValue(selectedElements, "stroke"),
+        textAlign: this.hasMixedTextAlign(textElements),
+      },
+    };
+  }
+
   setStyle(stylePatch: Partial<ElementStyle>): void {
     this.currentStyle = {
       ...this.currentStyle,
       ...stylePatch,
     };
     this.store.updateElementsStyle(this.selectedElementIds, stylePatch);
+    this.renderSelection();
+  }
+
+  setTextAlign(textAlign: TextAlign): void {
+    this.currentTextAlign = textAlign;
+    this.store.updateTextElementsAlign(this.selectedElementIds, textAlign);
     this.renderSelection();
   }
 
@@ -204,6 +284,31 @@ export class EditorController {
 
     this.store.addElements(pastedElements);
     this.selectedElementIds = new Set(pastedElements.map((element) => element.id));
+    this.renderSelection();
+
+    return true;
+  }
+
+  duplicateSelection(): boolean {
+    const selectedElements = this.getSelectedElements();
+
+    if (selectedElements.length === 0) {
+      return false;
+    }
+
+    this.clipboard = selectedElements.map((element) => structuredClone(element));
+    const bounds = getElementsBounds(selectedElements);
+    const duplicateTarget = bounds
+      ? { x: bounds.x + DUPLICATE_OFFSET, y: bounds.y + DUPLICATE_OFFSET }
+      : this.getPasteTarget();
+    const duplicatedElements = cloneElementsAt(this.clipboard, duplicateTarget);
+
+    if (duplicatedElements.length === 0) {
+      return false;
+    }
+
+    this.store.addElements(duplicatedElements);
+    this.selectedElementIds = new Set(duplicatedElements.map((element) => element.id));
     this.renderSelection();
 
     return true;
@@ -324,11 +429,15 @@ export class EditorController {
 
     if (this.activeTool === "text") {
       this.openTextEditor(screenPoint, {
+        textAlign: this.currentTextAlign,
         onCommit: (text) => {
           const trimmedText = text.trim();
 
           if (trimmedText.length > 0) {
-            const draftElement = createTextElement(worldPoint, trimmedText);
+            const draftElement = {
+              ...createTextElement(worldPoint, trimmedText),
+              textAlign: this.currentTextAlign,
+            };
             const element = this.applyCurrentStyle({
               ...draftElement,
               width: this.measureTextWidth(trimmedText, draftElement.fontSize),
@@ -643,6 +752,7 @@ export class EditorController {
       initialText: textElement.text,
       fontSize: textElement.fontSize,
       textColor: textElement.style.stroke,
+      textAlign: textElement.textAlign,
       onCommit: (text) => this.commitTextElementEdit(textElement, text),
       onCancel: () => this.finishTextElementEdit(textElement.id),
     });
@@ -1270,6 +1380,53 @@ export class EditorController {
     const selectedIds = this.selectedElementIds;
 
     return this.store.getSnapshot().elements.filter((element) => selectedIds.has(element.id));
+  }
+
+  private getCurrentStyle(): ObjectSettingsSnapshot["style"] {
+    return {
+      fill: this.currentStyle.fill ?? DEFAULT_STYLE.fill,
+      lineWidth: this.currentStyle.lineWidth ?? DEFAULT_STYLE.lineWidth,
+      opacity: this.currentStyle.opacity ?? DEFAULT_STYLE.opacity,
+      stroke: this.currentStyle.stroke ?? DEFAULT_STYLE.stroke,
+    };
+  }
+
+  private getCommonStyleValue<Key extends keyof ObjectSettingsSnapshot["style"]>(
+    elements: DrawingElement[],
+    key: Key,
+  ): ObjectSettingsSnapshot["style"][Key] | undefined {
+    const firstElement = elements[0];
+
+    if (!firstElement) {
+      return undefined;
+    }
+
+    const firstValue = firstElement.style[key];
+
+    return elements.every((element) => element.style[key] === firstValue) ? firstValue : undefined;
+  }
+
+  private hasMixedStyleValue<Key extends keyof ObjectSettingsSnapshot["style"]>(
+    elements: DrawingElement[],
+    key: Key,
+  ): boolean {
+    return this.getCommonStyleValue(elements, key) === undefined;
+  }
+
+  private getCommonTextAlign(elements: TextElement[]): TextAlign | undefined {
+    const firstElement = elements[0];
+
+    if (!firstElement) {
+      return undefined;
+    }
+
+    return elements.every((element) => element.textAlign === firstElement.textAlign)
+      ? firstElement.textAlign
+      : undefined;
+  }
+
+  private hasMixedTextAlign(elements: TextElement[]): boolean {
+    return elements.length > 0 && this.getCommonTextAlign(elements) === undefined;
   }
 
   private getPasteTarget(): Point {

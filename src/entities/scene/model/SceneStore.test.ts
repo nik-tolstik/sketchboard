@@ -133,6 +133,20 @@ describe("SceneStore", () => {
     expect(store.getSnapshot().elements.map((element) => element.layer)).toEqual([0, 1]);
   });
 
+  it("updates text alignment as an undoable change", async () => {
+    const repository = createRepository();
+    const store = new SceneStore(repository);
+    await store.hydrate();
+    const element = createTextElement({ x: 10, y: 10 }, "first");
+
+    store.addElement(element);
+
+    expect(store.updateTextElementsAlign(new Set([element.id]), "center")).toBe(true);
+    expect(store.getSnapshot().elements[0]).toMatchObject({ textAlign: "center" });
+    expect(store.undo()).toBe(true);
+    expect(store.getSnapshot().elements[0]).toMatchObject({ textAlign: "left" });
+  });
+
   it("replaces moved elements as one undoable change", async () => {
     const repository = createRepository();
     const store = new SceneStore(repository);

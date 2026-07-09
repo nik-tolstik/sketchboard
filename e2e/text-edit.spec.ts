@@ -8,6 +8,7 @@ type PersistedPoint = {
 type PersistedElement = {
   type?: string;
   text?: string;
+  textAlign?: string;
   layer?: number;
   points?: PersistedPoint[];
   width?: number;
@@ -15,6 +16,7 @@ type PersistedElement = {
   style?: {
     fill?: string;
     lineWidth?: number;
+    opacity?: number;
     stroke?: string;
   };
 };
@@ -310,6 +312,16 @@ const setStrokeWidth = async (page: Page, lineWidth: number): Promise<void> => {
   await page.locator(`[data-stroke-width][data-width="${lineWidth}"]`).click();
 };
 
+const setOpacity = async (page: Page, opacityPercent: number): Promise<void> => {
+  await page.locator("[data-opacity-control]").evaluate((element, nextOpacityPercent) => {
+    const input = element as HTMLInputElement;
+
+    input.value = String(nextOpacityPercent);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+  }, opacityPercent);
+};
+
 const wheelCanvas = async (
   page: Page,
   position: { x: number; y: number },
@@ -499,6 +511,9 @@ test("shows object settings for drawing tools and selected objects", async ({ pa
   await expect(objectSettingsPanel.locator('input[type="color"]')).toHaveCount(0);
   await expect(objectSettingsPanel.locator("[data-stroke-color]")).toHaveCount(7);
   await expect(objectSettingsPanel.locator("[data-fill-color]")).toHaveCount(7);
+  await expect(objectSettingsPanel.locator("[data-opacity-control]")).toBeVisible();
+  await expect(objectSettingsPanel.locator("[data-text-align-panel]")).toBeVisible();
+  await expect(objectSettingsPanel.locator("[data-text-align]")).toHaveCount(3);
   await expect(
     objectSettingsPanel.getByRole("button", { name: "Stroke Transparent" }),
   ).toHaveAttribute("data-color", TRANSPARENT_COLOR);
@@ -509,6 +524,7 @@ test("shows object settings for drawing tools and selected objects", async ({ pa
   await expect(
     objectSettingsPanel.locator('[data-stroke-width][aria-pressed="true"]'),
   ).toHaveAttribute("data-width", "2");
+  await objectSettingsPanel.locator('[data-text-align="center"]').click();
   await canvas.click({ position: { x: 320, y: 260 } });
   await expect(textEditor).toBeVisible();
   await textEditor.fill("Styled note");
@@ -521,22 +537,27 @@ test("shows object settings for drawing tools and selected objects", async ({ pa
   await setStrokeColor(page, "#61746b");
   await setFillColor(page, "#e8f1ec");
   await setStrokeWidth(page, 4);
+  await setOpacity(page, 52);
 
   await expect
     .poll(async () => {
       const [element] = await readPersistedElements(page);
 
-      return element?.style;
+      return element;
     })
     .toMatchObject({
-      stroke: "#61746b",
-      fill: "#e8f1ec",
-      lineWidth: 4,
+      textAlign: "center",
+      style: {
+        stroke: "#61746b",
+        fill: "#e8f1ec",
+        lineWidth: 4,
+        opacity: 0.52,
+      },
     });
 
   await page.keyboard.press("5");
   await expectActiveTool(page, "rectangle");
-  await dragCanvas(page, { x: 120, y: 130 }, { x: 220, y: 180 });
+  await dragCanvas(page, { x: 260, y: 130 }, { x: 360, y: 180 });
   await expectActiveTool(page, "select");
 
   await expect
@@ -548,7 +569,7 @@ test("shows object settings for drawing tools and selected objects", async ({ pa
     })
     .toBe(4);
 
-  await canvas.click({ position: { x: 170, y: 155 } });
+  await canvas.click({ position: { x: 310, y: 155 } });
   await expect(objectSettingsPanel).toBeVisible();
 
   await setStrokeColor(page, TRANSPARENT_COLOR);
@@ -565,6 +586,13 @@ test("shows object settings for drawing tools and selected objects", async ({ pa
       stroke: TRANSPARENT_COLOR,
       fill: TRANSPARENT_COLOR,
     });
+
+  await expect(objectSettingsPanel.locator("[data-selection-actions]")).toBeVisible();
+  await objectSettingsPanel.locator("[data-copy-selection]").click();
+  await expect.poll(() => readPersistedElements(page)).toHaveLength(3);
+
+  await objectSettingsPanel.locator("[data-delete-selection]").click();
+  await expect.poll(() => readPersistedElements(page)).toHaveLength(2);
 });
 
 test("creates ellipses by default and circles when Shift is held", async ({ page }) => {

@@ -32,6 +32,8 @@ export type CanvasRenderOptions = {
 
 const CANVAS_BACKGROUND = "#ffffff";
 
+const clampOpacity = (opacity: number): number => Math.min(Math.max(opacity, 0), 1);
+
 export class CanvasRenderer {
   private context: CanvasRenderingContext2D;
   private width = 0;
@@ -114,6 +116,7 @@ export class CanvasRenderer {
     this.context.strokeStyle = element.style.stroke;
     this.context.fillStyle = element.style.fill;
     this.context.lineWidth = element.style.lineWidth;
+    this.context.globalAlpha = clampOpacity(element.style.opacity);
     this.context.lineJoin = "round";
     this.context.lineCap = "round";
 
@@ -150,17 +153,31 @@ export class CanvasRenderer {
   private drawText(element: TextElement): void {
     this.context.font = getCanvasTextFont(element.fontSize);
     this.context.textBaseline = "top";
+    this.context.textAlign = element.textAlign;
     this.context.fillStyle = element.style.stroke;
+    const textX = this.getTextLineX(element);
 
     const lines = element.text.split("\n");
 
     for (let index = 0; index < lines.length; index += 1) {
       this.context.fillText(
         lines[index] ?? "",
-        element.x + TEXT_CONTENT_INSET_X,
+        textX,
         element.y + TEXT_CONTENT_INSET_Y + index * element.fontSize * TEXT_LINE_HEIGHT,
       );
     }
+  }
+
+  private getTextLineX(element: TextElement): number {
+    if (element.textAlign === "center") {
+      return element.x + element.width / 2;
+    }
+
+    if (element.textAlign === "right") {
+      return element.x + element.width - TEXT_CONTENT_INSET_X;
+    }
+
+    return element.x + TEXT_CONTENT_INSET_X;
   }
 
   private drawShape(element: ShapeElement): void {

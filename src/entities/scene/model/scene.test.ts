@@ -85,6 +85,34 @@ describe("scene", () => {
     expect(scene.elements.map((element) => element.layer)).toEqual([0, 8, 9]);
   });
 
+  it("repairs missing styles and text alignment", () => {
+    const scene = normalizeScene({
+      version: 1,
+      elements: [
+        {
+          id: "1",
+          type: "text",
+          textAlign: "diagonal",
+          style: { opacity: 1.8, lineWidth: -4 },
+        },
+        {
+          id: "2",
+          type: "rectangle",
+          style: { opacity: -0.2 },
+        },
+      ] as never,
+      viewport: DEFAULT_VIEWPORT,
+      updatedAt: Date.now(),
+    });
+
+    const [text, rectangle] = scene.elements;
+
+    expect(text?.style.opacity).toBe(1);
+    expect(text?.style.lineWidth).toBe(2);
+    expect(text?.type === "text" ? text.textAlign : undefined).toBe("left");
+    expect(rectangle?.style.opacity).toBe(0);
+  });
+
   it("widens old persisted text elements to the current computed width", () => {
     const text = "123456789123456789123456789123456789";
     const scene = normalizeScene({

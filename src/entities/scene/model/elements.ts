@@ -1,5 +1,6 @@
 export type DrawingElementType = "brush" | "text" | "rectangle" | "diamond" | "ellipse" | "arrow";
 export type Tool = "pan" | "select" | DrawingElementType;
+export type TextAlign = "left" | "center" | "right";
 
 export type Point = {
   x: number;
@@ -16,6 +17,7 @@ export type ElementStyle = {
   stroke: string;
   fill: string;
   lineWidth: number;
+  opacity: number;
   roughness: number;
 };
 
@@ -38,6 +40,7 @@ export type TextElement = BaseElement & {
   x: number;
   y: number;
   text: string;
+  textAlign: TextAlign;
   fontSize: number;
   width: number;
 };
@@ -68,6 +71,7 @@ export const DEFAULT_STYLE: ElementStyle = {
   stroke: "#171717",
   fill: "rgba(255, 255, 255, 0)",
   lineWidth: 2,
+  opacity: 1,
   roughness: 0.55,
 };
 
@@ -79,6 +83,7 @@ export const DEFAULT_VIEWPORT: Viewport = {
 
 export const DEFAULT_LAYER = 0;
 export const MIN_ARROW_POINTS = 3;
+export const DEFAULT_TEXT_ALIGN: TextAlign = "left";
 export const DEFAULT_TEXT_FONT_SIZE = 24;
 export const TEXT_CONTENT_INSET_X = 3;
 export const TEXT_CONTENT_INSET_Y = 5;
@@ -134,6 +139,7 @@ export const createTextElement = (
     x: point.x,
     y: point.y,
     text,
+    textAlign: DEFAULT_TEXT_ALIGN,
     fontSize: DEFAULT_TEXT_FONT_SIZE,
     width: getTextElementWidth(text),
     createdAt: timestamp,

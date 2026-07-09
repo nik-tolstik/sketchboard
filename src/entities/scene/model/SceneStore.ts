@@ -1,5 +1,5 @@
 import type { IndexedDbSceneRepository } from "../api/indexedDbSceneRepository";
-import type { DrawingElement, ElementStyle, SceneSnapshot, Viewport } from "./elements";
+import type { DrawingElement, ElementStyle, SceneSnapshot, TextAlign, Viewport } from "./elements";
 import { createEmptyScene } from "./scene";
 import { applyElementStyle, getElementsInLayerOrder } from "./selection";
 
@@ -214,6 +214,46 @@ export class SceneStore {
       updatedAt: Date.now(),
     };
     this.commit();
+  }
+
+  updateTextElementsAlign(elementIds: Set<string>, textAlign: TextAlign): boolean {
+    if (elementIds.size === 0) {
+      return false;
+    }
+
+    const updatedAt = Date.now();
+    let didUpdate = false;
+    const elements = this.scene.elements.map((element) => {
+      if (
+        element.type !== "text" ||
+        !elementIds.has(element.id) ||
+        element.textAlign === textAlign
+      ) {
+        return element;
+      }
+
+      didUpdate = true;
+
+      return {
+        ...element,
+        textAlign,
+        updatedAt,
+      };
+    });
+
+    if (!didUpdate) {
+      return false;
+    }
+
+    this.pushHistory();
+    this.scene = {
+      ...this.scene,
+      elements,
+      updatedAt,
+    };
+    this.commit();
+
+    return true;
   }
 
   updateElementsLayer(elementIds: Set<string>, command: LayerOrderCommand): boolean {
