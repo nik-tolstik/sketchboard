@@ -25,9 +25,7 @@ export type CanvasRenderOptions = {
   selectionBox?: Rect;
 };
 
-const GRID_SIZE = 24;
-const CANVAS_BACKGROUND = "#fbfbfa";
-const GRID_COLOR = "rgba(26, 26, 26, 0.075)";
+const CANVAS_BACKGROUND = "#ffffff";
 const TEXT_CONTENT_INSET_X = 3;
 const TEXT_CONTENT_INSET_Y = 4;
 const TEXT_LINE_HEIGHT = 1.3;
@@ -60,7 +58,6 @@ export class CanvasRenderer {
 
   render(scene: SceneSnapshot, options: CanvasRenderOptions = {}): void {
     this.clear();
-    this.drawGrid(scene.viewport);
 
     this.context.save();
     this.applyViewport(scene.viewport);
@@ -102,30 +99,6 @@ export class CanvasRenderer {
     this.context.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
     this.context.fillStyle = CANVAS_BACKGROUND;
     this.context.fillRect(0, 0, this.width, this.height);
-    this.context.restore();
-  }
-
-  private drawGrid(viewport: Viewport): void {
-    const scaledGrid = GRID_SIZE * viewport.zoom;
-    const offsetX = viewport.x % scaledGrid;
-    const offsetY = viewport.y % scaledGrid;
-
-    this.context.save();
-    this.context.strokeStyle = GRID_COLOR;
-    this.context.lineWidth = 1;
-    this.context.beginPath();
-
-    for (let x = offsetX; x < this.width; x += scaledGrid) {
-      this.context.moveTo(x, 0);
-      this.context.lineTo(x, this.height);
-    }
-
-    for (let y = offsetY; y < this.height; y += scaledGrid) {
-      this.context.moveTo(0, y);
-      this.context.lineTo(this.width, y);
-    }
-
-    this.context.stroke();
     this.context.restore();
   }
 
