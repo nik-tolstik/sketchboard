@@ -16,6 +16,7 @@ describe("getObjectSettingsSnapshot", () => {
       hasSelection: false,
       selectionCount: 0,
       style: {
+        borderRadius: DEFAULT_STYLE.borderRadius,
         fill: DEFAULT_STYLE.fill,
         lineWidth: DEFAULT_STYLE.lineWidth,
         opacity: DEFAULT_STYLE.opacity,
@@ -39,6 +40,7 @@ describe("getObjectSettingsSnapshot", () => {
 
     expect(settings).toMatchObject({
       hasSelection: true,
+      hasBorderRadiusSelection: false,
       hasTextSelection: true,
       selectionCount: 2,
       mixed: {
@@ -61,9 +63,30 @@ describe("getObjectSettingsSnapshot", () => {
         selectedElements: [shape],
       }),
     ).toMatchObject({
+      hasBorderRadiusSelection: true,
       hasTextSelection: false,
       textAlign: "right",
       mixed: { textAlign: false },
+    });
+  });
+
+  it("projects mixed border radius only from supported shapes", () => {
+    const rectangle = createShapeElement("rectangle", { x: 0, y: 0 }, { x: 40, y: 30 });
+    const diamond = createShapeElement("diamond", { x: 50, y: 0 }, { x: 90, y: 30 });
+    const ellipse = createShapeElement("ellipse", { x: 100, y: 0 }, { x: 140, y: 30 });
+    rectangle.style = { ...rectangle.style, borderRadius: 4 };
+    diamond.style = { ...diamond.style, borderRadius: 16 };
+
+    expect(
+      getObjectSettingsSnapshot({
+        currentStyle: DEFAULT_STYLE,
+        currentTextAlign: "left",
+        selectedElements: [ellipse, rectangle, diamond],
+      }),
+    ).toMatchObject({
+      hasBorderRadiusSelection: true,
+      style: { borderRadius: 4 },
+      mixed: { borderRadius: true },
     });
   });
 });

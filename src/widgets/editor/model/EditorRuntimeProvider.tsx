@@ -8,6 +8,7 @@ import {
   SceneStore,
   getTextElementWidth,
   type SaveState,
+  type BorderRadius,
   type TextAlign,
   type Tool,
 } from "@/entities/scene";
@@ -21,6 +22,7 @@ import type { ObjectSettingsSnapshot } from "./objectSettings";
 import { EditorRuntimeContext, type EditorRuntime } from "./useEditorRuntime";
 
 const DEFAULT_STROKE_COLOR = DEFAULT_STYLE.stroke;
+const DEFAULT_BORDER_RADIUS = DEFAULT_STYLE.borderRadius;
 const DEFAULT_FILL_COLOR = DEFAULT_STYLE.fill;
 const DEFAULT_LINE_WIDTH = DEFAULT_STYLE.lineWidth;
 const DEFAULT_OPACITY = DEFAULT_STYLE.opacity;
@@ -39,6 +41,7 @@ type TextEditorOptions = {
 };
 
 const initialMixedObjectSettings: ObjectSettingsSnapshot["mixed"] = {
+  borderRadius: false,
   fill: false,
   lineWidth: false,
   opacity: false,
@@ -62,11 +65,13 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [isPanning, setIsPanning] = useState(false);
   const [strokeColor, setStrokeColorState] = useState(DEFAULT_STROKE_COLOR);
+  const [borderRadius, setBorderRadiusState] = useState<BorderRadius>(DEFAULT_BORDER_RADIUS);
   const [fillColor, setFillColorState] = useState(DEFAULT_FILL_COLOR);
   const [lineWidth, setLineWidthState] = useState(DEFAULT_LINE_WIDTH);
   const [opacity, setOpacityState] = useState(DEFAULT_OPACITY);
   const [textAlign, setTextAlignState] = useState<TextAlign>(DEFAULT_TEXT_ALIGN);
   const [hasSelection, setHasSelection] = useState(false);
+  const [hasBorderRadiusSelection, setHasBorderRadiusSelection] = useState(false);
   const [hasTextSelection, setHasTextSelection] = useState(false);
   const [selectionCount, setSelectionCount] = useState(0);
   const [mixedObjectSettings, setMixedObjectSettings] = useState(initialMixedObjectSettings);
@@ -102,9 +107,11 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
       const settings = controller.getObjectSettings();
 
       setHasSelection(settings.hasSelection);
+      setHasBorderRadiusSelection(settings.hasBorderRadiusSelection);
       setHasTextSelection(settings.hasTextSelection);
       setSelectionCount(settings.selectionCount);
       setStrokeColorState(settings.style.stroke);
+      setBorderRadiusState(settings.style.borderRadius);
       setFillColorState(settings.style.fill);
       setLineWidthState(settings.style.lineWidth);
       setOpacityState(settings.style.opacity);
@@ -314,6 +321,7 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
       storeRef.current = null;
       setIsPanning(false);
       setHasSelection(false);
+      setHasBorderRadiusSelection(false);
       setHasTextSelection(false);
       setSelectionCount(0);
       setMixedObjectSettings(initialMixedObjectSettings);
@@ -328,6 +336,11 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
   const setStrokeColor = useCallback((color: string): void => {
     setStrokeColorState(color);
     controllerRef.current?.setStyle({ stroke: color });
+  }, []);
+
+  const setBorderRadius = useCallback((nextBorderRadius: BorderRadius): void => {
+    setBorderRadiusState(nextBorderRadius);
+    controllerRef.current?.setBorderRadius(nextBorderRadius);
   }, []);
 
   const setFillColor = useCallback((color: string): void => {
@@ -387,12 +400,14 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
   const runtime = useMemo<EditorRuntime>(
     () => ({
       activeTool,
+      borderRadius,
       canvasRef,
       clearScene,
       copySelection,
       deleteSelection,
       exportPng,
       fillColor,
+      hasBorderRadiusSelection,
       hasSelection,
       hasTextSelection,
       isPanning,
@@ -401,6 +416,7 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
       opacity,
       saveState,
       setFillColor,
+      setBorderRadius,
       setLineWidth,
       setOpacity,
       setStrokeColor,
@@ -418,11 +434,13 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
     }),
     [
       activeTool,
+      borderRadius,
       clearScene,
       copySelection,
       deleteSelection,
       exportPng,
       fillColor,
+      hasBorderRadiusSelection,
       hasSelection,
       hasTextSelection,
       isPanning,
@@ -433,6 +451,7 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
       saveState,
       selectionCount,
       setFillColor,
+      setBorderRadius,
       setLineWidth,
       setOpacity,
       setStrokeColor,

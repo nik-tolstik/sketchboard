@@ -109,8 +109,24 @@ describe("scene", () => {
 
     expect(text?.style.opacity).toBe(1);
     expect(text?.style.lineWidth).toBe(2);
+    expect(text?.style.borderRadius).toBe(0);
     expect(text?.type === "text" ? text.textAlign : undefined).toBe("left");
     expect(rectangle?.style.opacity).toBe(0);
+  });
+
+  it("normalizes persisted border radius presets", () => {
+    const scene = normalizeScene({
+      version: 1,
+      elements: [
+        { id: "1", type: "rectangle", style: { borderRadius: 16 } },
+        { id: "2", type: "diamond", style: { borderRadius: 12 } },
+        { id: "3", type: "rectangle", style: { borderRadius: -4 } },
+      ] as never,
+      viewport: DEFAULT_VIEWPORT,
+      updatedAt: Date.now(),
+    });
+
+    expect(scene.elements.map((element) => element.style.borderRadius)).toEqual([16, 0, 0]);
   });
 
   it("widens old persisted text elements to the current computed width", () => {

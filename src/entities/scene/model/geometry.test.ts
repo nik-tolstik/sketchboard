@@ -3,6 +3,7 @@ import {
   MAX_VIEWPORT_ZOOM,
   MIN_VIEWPORT_ZOOM,
   clampViewportZoom,
+  clampShapeBorderRadius,
   constrainToSquareDelta,
   getArrowCurveBounds,
   getArrowCurvePoints,
@@ -11,6 +12,8 @@ import {
   getArrowHeadSegment,
   getDiamondPoints,
   getPointOnCubicBezier,
+  getRoundedContourPoints,
+  getRoundedShapeContour,
   normalizeRect,
   screenToWorld,
   shouldAppendPoint,
@@ -59,6 +62,58 @@ describe("geometry", () => {
       { x: 10, y: 10 },
       { x: 0, y: 5 },
     ]);
+  });
+
+  it("keeps zero-radius rectangle and diamond contours sharp", () => {
+    const rectangle = getRoundedShapeContour(
+      "rectangle",
+      { x: 20, y: 10, width: -20, height: 10 },
+      0,
+    );
+    const diamond = getRoundedShapeContour("diamond", { x: 0, y: 0, width: 20, height: 10 }, 0);
+
+    expect(getRoundedContourPoints(rectangle)).toEqual([
+      { x: 0, y: 10 },
+      { x: 20, y: 10 },
+      { x: 20, y: 20 },
+      { x: 0, y: 20 },
+    ]);
+    expect(getRoundedContourPoints(diamond)).toEqual(
+      getDiamondPoints({ x: 0, y: 0, width: 20, height: 10 }),
+    );
+    expect(rectangle.segments.every((segment) => segment.type === "line")).toBe(true);
+    expect(diamond.segments.every((segment) => segment.type === "line")).toBe(true);
+  });
+
+  it("builds rounded rectangle and diamond contours from line and quadratic segments", () => {
+    const rectangle = getRoundedShapeContour(
+      "rectangle",
+      { x: 0, y: 0, width: 100, height: 60 },
+      16,
+    );
+    const diamond = getRoundedShapeContour("diamond", { x: 0, y: 0, width: 100, height: 60 }, 16);
+
+    expect(rectangle.start).toEqual({ x: 16, y: 0 });
+    expect(rectangle.segments.slice(0, 2)).toEqual([
+      { type: "line", end: { x: 84, y: 0 } },
+      { type: "quadratic", control: { x: 100, y: 0 }, end: { x: 100, y: 16 } },
+    ]);
+    expect(diamond.segments.filter((segment) => segment.type === "quadratic")).toHaveLength(4);
+    expect(getRoundedContourPoints(diamond)).not.toContainEqual({ x: 50, y: 0 });
+  });
+
+  it("clamps border radius to the available shape size", () => {
+    const smallRectangle = getRoundedShapeContour(
+      "rectangle",
+      { x: 0, y: 0, width: 12, height: 8 },
+      16,
+    );
+
+    expect(clampShapeBorderRadius({ x: 0, y: 0, width: 12, height: 8 }, 16)).toBe(4);
+    expect(clampShapeBorderRadius({ x: 0, y: 0, width: -12, height: -8 }, 16)).toBe(4);
+    expect(clampShapeBorderRadius({ x: 0, y: 0, width: 12, height: 8 }, Number.NaN)).toBe(0);
+    expect(smallRectangle.radius).toBe(4);
+    expect(smallRectangle.start).toEqual({ x: 4, y: 0 });
   });
 
   it("skips dense brush points", () => {

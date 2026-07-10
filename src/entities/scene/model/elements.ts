@@ -1,6 +1,8 @@
 export type DrawingElementType = "brush" | "text" | "rectangle" | "diamond" | "ellipse" | "arrow";
 export type Tool = "pan" | "select" | DrawingElementType;
 export type TextAlign = "left" | "center" | "right";
+export const BORDER_RADIUS_VALUES = [0, 4, 8, 16] as const;
+export type BorderRadius = (typeof BORDER_RADIUS_VALUES)[number];
 
 export type Point = {
   x: number;
@@ -14,6 +16,7 @@ export type Viewport = {
 };
 
 export type ElementStyle = {
+  borderRadius: BorderRadius;
   stroke: string;
   fill: string;
   lineWidth: number;
@@ -68,6 +71,7 @@ export type SceneSnapshot = {
 };
 
 export const DEFAULT_STYLE: ElementStyle = {
+  borderRadius: 0,
   stroke: "#171717",
   fill: "rgba(255, 255, 255, 0)",
   lineWidth: 2,

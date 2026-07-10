@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createTextElement, type SceneSnapshot } from "./elements";
+import { createShapeElement, createTextElement, type SceneSnapshot } from "./elements";
 import { createEmptyScene } from "./scene";
 import type { SceneRepository } from "./sceneRepository";
 import { SceneStore } from "./SceneStore";
@@ -93,6 +93,20 @@ describe("SceneStore", () => {
     expect(store.getSnapshot().elements[0]?.style.stroke).not.toBe("#ff0000");
     expect(store.undo()).toBe(true);
     expect(store.getSnapshot().elements).toHaveLength(0);
+  });
+
+  it("persists border radius style changes through undo and redo", async () => {
+    const { store } = await createStore();
+    const rectangle = createShapeElement("rectangle", { x: 0, y: 0 }, { x: 80, y: 40 });
+
+    store.addElement(rectangle);
+    store.updateElementsStyle(new Set([rectangle.id]), { borderRadius: 16 });
+
+    expect(store.getSnapshot().elements[0]?.style.borderRadius).toBe(16);
+    expect(store.undo()).toBe(true);
+    expect(store.getSnapshot().elements[0]?.style.borderRadius).toBe(0);
+    expect(store.redo()).toBe(true);
+    expect(store.getSnapshot().elements[0]?.style.borderRadius).toBe(16);
   });
 
   it("assigns new elements to increasing top layers", async () => {

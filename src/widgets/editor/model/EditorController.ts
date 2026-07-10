@@ -11,6 +11,7 @@ import {
   updateTextElementText,
   clampViewportZoom,
   type ArrowElement,
+  type BorderRadius,
   type BrushElement,
   type DrawingElement,
   type ElementStyle,
@@ -104,6 +105,7 @@ const WHEEL_ZOOM_SPEED = 0.002;
 export class EditorController {
   private activeTool: Tool = "select";
   private currentStyle: Partial<ElementStyle> = {
+    borderRadius: DEFAULT_STYLE.borderRadius,
     stroke: DEFAULT_STYLE.stroke,
     fill: DEFAULT_STYLE.fill,
     lineWidth: DEFAULT_STYLE.lineWidth,
@@ -194,6 +196,21 @@ export class EditorController {
       ...stylePatch,
     };
     this.store.updateElementsStyle(this.selectedElementIds, stylePatch);
+    this.renderSelection();
+  }
+
+  setBorderRadius(borderRadius: BorderRadius): void {
+    this.currentStyle = {
+      ...this.currentStyle,
+      borderRadius,
+    };
+    const borderRadiusElementIds = new Set(
+      this.getSelectedElements()
+        .filter((element) => element.type === "rectangle" || element.type === "diamond")
+        .map((element) => element.id),
+    );
+
+    this.store.updateElementsStyle(borderRadiusElementIds, { borderRadius });
     this.renderSelection();
   }
 
@@ -1340,11 +1357,17 @@ export class EditorController {
   }
 
   private applyCurrentStyle<T extends DrawingElement>(element: T): T {
+    const borderRadius =
+      element.type === "rectangle" || element.type === "diamond"
+        ? this.currentStyle.borderRadius
+        : DEFAULT_STYLE.borderRadius;
+
     return {
       ...element,
       style: {
         ...element.style,
         ...this.currentStyle,
+        borderRadius,
       },
     };
   }

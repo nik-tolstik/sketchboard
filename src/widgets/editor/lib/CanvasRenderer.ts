@@ -14,9 +14,9 @@ import {
   getArrowCurveSegments,
   getArrowHead,
   getArrowHeadSegment,
-  getDiamondPoints,
   getElementBounds,
   getElementsInLayerOrder,
+  getRoundedShapeContour,
   normalizeRect,
   type Rect,
 } from "@/entities/scene";
@@ -193,12 +193,6 @@ export class CanvasRenderer {
       return;
     }
 
-    if (element.type === "rectangle") {
-      this.context.fillRect(rect.x, rect.y, rect.width, rect.height);
-      this.context.strokeRect(rect.x, rect.y, rect.width, rect.height);
-      return;
-    }
-
     if (element.type === "ellipse") {
       this.context.beginPath();
       this.context.ellipse(
@@ -215,17 +209,24 @@ export class CanvasRenderer {
       return;
     }
 
-    const [top, right, bottom, left] = getDiamondPoints(rect);
-
-    if (!top || !right || !bottom || !left) {
-      return;
-    }
+    const contour = getRoundedShapeContour(element.type, rect, element.style.borderRadius ?? 0);
 
     this.context.beginPath();
-    this.context.moveTo(top.x, top.y);
-    this.context.lineTo(right.x, right.y);
-    this.context.lineTo(bottom.x, bottom.y);
-    this.context.lineTo(left.x, left.y);
+    this.context.moveTo(contour.start.x, contour.start.y);
+
+    for (const segment of contour.segments) {
+      if (segment.type === "line") {
+        this.context.lineTo(segment.end.x, segment.end.y);
+      } else {
+        this.context.quadraticCurveTo(
+          segment.control.x,
+          segment.control.y,
+          segment.end.x,
+          segment.end.y,
+        );
+      }
+    }
+
     this.context.closePath();
     this.context.fill();
     this.context.stroke();

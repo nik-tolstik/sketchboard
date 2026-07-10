@@ -1,12 +1,13 @@
 import type { RefObject } from "react";
 import { createContext, useContextSelector } from "use-context-selector";
 
-import type { LayerOrderCommand, SaveState, TextAlign, Tool } from "@/entities/scene";
+import type { BorderRadius, LayerOrderCommand, SaveState, TextAlign, Tool } from "@/entities/scene";
 
 import type { ObjectSettingsSnapshot } from "./objectSettings";
 
 export type EditorRuntime = {
   activeTool: Tool;
+  borderRadius: BorderRadius;
   canvasRef: RefObject<HTMLCanvasElement | null>;
   clearScene: () => void;
   copySelection: () => void;
@@ -14,6 +15,7 @@ export type EditorRuntime = {
   exportPng: () => void;
   fillColor: string;
   hasSelection: boolean;
+  hasBorderRadiusSelection: boolean;
   hasTextSelection: boolean;
   isPanning: boolean;
   lineWidth: number;
@@ -23,6 +25,7 @@ export type EditorRuntime = {
   saveState: SaveState;
   selectionCount: number;
   setFillColor: (color: string) => void;
+  setBorderRadius: (borderRadius: BorderRadius) => void;
   setLineWidth: (lineWidth: number) => void;
   setOpacity: (opacity: number) => void;
   setStrokeColor: (color: string) => void;

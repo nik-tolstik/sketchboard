@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createArrowElement,
+  createShapeElement,
   createTextElement,
   getTextElementHeight,
   getTextElementWidth,
@@ -47,5 +48,13 @@ describe("elements", () => {
       { x: 50, y: 40 },
       { x: 70, y: 35 },
     ]);
+  });
+
+  it("creates shapes without rounded corners by default", () => {
+    const rectangle = createShapeElement("rectangle", { x: 0, y: 0 }, { x: 80, y: 40 });
+    const diamond = createShapeElement("diamond", { x: 0, y: 0 }, { x: 80, y: 40 });
+
+    expect(rectangle.style.borderRadius).toBe(0);
+    expect(diamond.style.borderRadius).toBe(0);
   });
 });

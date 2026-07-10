@@ -18,6 +18,25 @@ export type CubicBezierSegment = {
   end: Point;
 };
 
+export type RoundedContourSegment =
+  | {
+      type: "line";
+      end: Point;
+    }
+  | {
+      type: "quadratic";
+      control: Point;
+      end: Point;
+    };
+
+export type RoundedContour = {
+  start: Point;
+  segments: RoundedContourSegment[];
+  radius: number;
+};
+
+export type RoundedShapeType = "rectangle" | "diamond";
+
 const ARROW_CURVE_SAMPLE_STEP = 8;
 
 export const clampViewportZoom = (zoom: number): number => {
@@ -119,6 +138,133 @@ export const getDiamondPoints = (rect: Rect): Point[] => {
     { x: centerX, y: normalized.y + normalized.height },
     { x: normalized.x, y: centerY },
   ];
+};
+
+export const clampShapeBorderRadius = (rect: Rect, radius: number): number => {
+  if (!Number.isFinite(radius) || radius <= 0) {
+    return 0;
+  }
+
+  const normalized = normalizeRect(rect);
+
+  return Math.min(radius, normalized.width / 2, normalized.height / 2);
+};
+
+const getRectanglePoints = (rect: Rect): Point[] => {
+  const normalized = normalizeRect(rect);
+
+  return [
+    { x: normalized.x, y: normalized.y },
+    { x: normalized.x + normalized.width, y: normalized.y },
+    { x: normalized.x + normalized.width, y: normalized.y + normalized.height },
+    { x: normalized.x, y: normalized.y + normalized.height },
+  ];
+};
+
+const moveTowards = (start: Point, target: Point, amount: number): Point => {
+  const length = distance(start, target);
+
+  if (length === 0) {
+    return { ...start };
+  }
+
+  const progress = Math.min(1, amount / length);
+
+  return {
+    x: start.x + (target.x - start.x) * progress,
+    y: start.y + (target.y - start.y) * progress,
+  };
+};
+
+export const getRoundedShapeContour = (
+  type: RoundedShapeType,
+  rect: Rect,
+  radius: number,
+): RoundedContour => {
+  const normalized = normalizeRect(rect);
+  const vertices =
+    type === "diamond" ? getDiamondPoints(normalized) : getRectanglePoints(normalized);
+  const clampedRadius = clampShapeBorderRadius(normalized, radius);
+  const firstVertex = vertices[0] ?? { x: normalized.x, y: normalized.y };
+
+  if (clampedRadius === 0) {
+    return {
+      start: firstVertex,
+      segments: vertices.slice(1).map((end) => ({ type: "line", end })),
+      radius: 0,
+    };
+  }
+
+  const corners = vertices.map((vertex, index) => {
+    const previous = vertices[(index - 1 + vertices.length) % vertices.length] ?? vertex;
+    const next = vertices[(index + 1) % vertices.length] ?? vertex;
+    const inset = Math.min(
+      clampedRadius,
+      distance(previous, vertex) / 2,
+      distance(vertex, next) / 2,
+    );
+
+    return {
+      vertex,
+      entry: moveTowards(vertex, previous, inset),
+      exit: moveTowards(vertex, next, inset),
+    };
+  });
+  const firstCorner = corners[0];
+
+  if (!firstCorner) {
+    return { start: firstVertex, segments: [], radius: clampedRadius };
+  }
+
+  const orderedCorners = [...corners.slice(1), firstCorner];
+
+  return {
+    start: firstCorner.exit,
+    segments: orderedCorners.flatMap<RoundedContourSegment>((corner) => [
+      { type: "line", end: corner.entry },
+      { type: "quadratic", control: corner.vertex, end: corner.exit },
+    ]),
+    radius: clampedRadius,
+  };
+};
+
+export const getRoundedContourPoints = (
+  contour: RoundedContour,
+  curveSubdivisions = 8,
+): Point[] => {
+  const points: Point[] = [{ ...contour.start }];
+  let current = contour.start;
+  const subdivisions = Math.max(1, Math.floor(curveSubdivisions));
+
+  for (const segment of contour.segments) {
+    if (segment.type === "line") {
+      points.push({ ...segment.end });
+    } else {
+      for (let step = 1; step <= subdivisions; step += 1) {
+        const progress = step / subdivisions;
+        const remaining = 1 - progress;
+
+        points.push({
+          x:
+            remaining ** 2 * current.x +
+            2 * remaining * progress * segment.control.x +
+            progress ** 2 * segment.end.x,
+          y:
+            remaining ** 2 * current.y +
+            2 * remaining * progress * segment.control.y +
+            progress ** 2 * segment.end.y,
+        });
+      }
+    }
+
+    current = segment.end;
+  }
+
+  if (points.length > 1 && distance(points[0]!, points.at(-1)!) < 0.001) {
+    points.pop();
+  }
+
+  return points;
 };
 
 const getUniqueConsecutivePoints = (points: Point[]): Point[] =>

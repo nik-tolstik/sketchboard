@@ -1,4 +1,5 @@
 import {
+  BORDER_RADIUS_VALUES,
   DEFAULT_STYLE,
   DEFAULT_TEXT_ALIGN,
   DEFAULT_TEXT_FONT_SIZE,
@@ -7,6 +8,7 @@ import {
   MIN_ARROW_POINTS,
   getTextElementWidth,
   type DrawingElement,
+  type BorderRadius,
   type ElementStyle,
   type Point,
   type SceneSnapshot,
@@ -32,10 +34,16 @@ const stringOrDefault = (value: unknown, fallback: string): string =>
 const textAlignOrDefault = (value: unknown): TextAlign =>
   value === "center" || value === "right" ? value : DEFAULT_TEXT_ALIGN;
 
+const borderRadiusOrDefault = (value: unknown): BorderRadius =>
+  BORDER_RADIUS_VALUES.includes(value as BorderRadius)
+    ? (value as BorderRadius)
+    : DEFAULT_STYLE.borderRadius;
+
 const normalizeStyle = (value: unknown): ElementStyle => {
   const style = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 
   return {
+    borderRadius: borderRadiusOrDefault(style.borderRadius),
     stroke: stringOrDefault(style.stroke, DEFAULT_STYLE.stroke),
     fill: stringOrDefault(style.fill, DEFAULT_STYLE.fill),
     lineWidth: positiveOrDefault(style.lineWidth, DEFAULT_STYLE.lineWidth),

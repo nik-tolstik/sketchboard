@@ -2,6 +2,7 @@ import { cn } from "@/shared/lib/utils";
 
 import { isObjectTool } from "../config/editorConfig";
 import { useEditorRuntime } from "../model/useEditorRuntime";
+import { BorderRadiusSection } from "./object-settings/BorderRadiusSection";
 import { FillColorSection } from "./object-settings/FillColorSection";
 import { LayerControlsSection } from "./object-settings/LayerControlsSection";
 import { OpacitySection } from "./object-settings/OpacitySection";
@@ -29,6 +30,7 @@ export function ObjectSettingsPanel() {
       <StrokeColorSection />
       <FillColorSection />
       <StrokeWidthSection />
+      <BorderRadiusSection />
       <OpacitySection />
       <TextAlignmentSection />
       <LayerControlsSection />

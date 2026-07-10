@@ -14,6 +14,7 @@ type PersistedElement = {
   width?: number;
   height?: number;
   style?: {
+    borderRadius?: 0 | 4 | 8 | 16;
     fill?: string;
     lineWidth?: number;
     opacity?: number;
@@ -311,6 +312,10 @@ const setStrokeColor = async (page: Page, color: string): Promise<void> => {
 
 const setStrokeWidth = async (page: Page, lineWidth: number): Promise<void> => {
   await page.locator(`[data-stroke-width][data-width="${lineWidth}"]`).click();
+};
+
+const setBorderRadius = async (page: Page, borderRadius: 0 | 4 | 8 | 16): Promise<void> => {
+  await page.locator(`[data-border-radius][data-radius="${borderRadius}"]`).click();
 };
 
 const setOpacity = async (page: Page, opacityPercent: number): Promise<void> => {
@@ -645,6 +650,178 @@ test("shows object settings for drawing tools and selected objects", async ({ pa
 
   await objectSettingsPanel.locator("[data-delete-selection]").click();
   await expect.poll(() => readPersistedElements(page)).toHaveLength(2);
+});
+
+test("configures a shared border radius for rectangles and diamonds", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Rectangle" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  const canvas = page.locator("[data-canvas]");
+  const borderRadiusPanel = page.locator("[data-border-radius-panel]");
+
+  await expect(borderRadiusPanel).toBeHidden();
+  await page.getByRole("button", { name: "Text" }).click();
+  await expect(borderRadiusPanel).toBeHidden();
+  await page.getByRole("button", { name: "Ellipse" }).click();
+  await expect(borderRadiusPanel).toBeHidden();
+
+  await page.getByRole("button", { name: "Rectangle" }).click();
+  await expect(borderRadiusPanel).toBeVisible();
+
+  const presets = [
+    { label: "None", radius: 0 },
+    { label: "Small", radius: 4 },
+    { label: "Medium", radius: 8 },
+    { label: "Large", radius: 16 },
+  ] as const;
+
+  await expect(borderRadiusPanel.locator("[data-border-radius]")).toHaveCount(presets.length);
+
+  for (const preset of presets) {
+    const control = borderRadiusPanel.getByRole("button", {
+      name: preset.label,
+      exact: true,
+    });
+
+    await expect(control).toHaveAttribute("data-radius", String(preset.radius));
+    await setBorderRadius(page, preset.radius);
+    await expect(control).toHaveAttribute("aria-pressed", "true");
+  }
+
+  await setBorderRadius(page, 8);
+  await dragCanvas(page, { x: 220, y: 180 }, { x: 340, y: 240 });
+  await expectActiveTool(page, "select");
+  await expect(borderRadiusPanel).toBeHidden();
+  await expect
+    .poll(() => countDarkCanvasPixels(page, { x: 220, y: 180, width: 2, height: 2 }))
+    .toBeLessThanOrEqual(1);
+  await expect
+    .poll(() => countDarkCanvasPixels(page, { x: 230, y: 179, width: 8, height: 4 }))
+    .toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "Diamond" }).click();
+  await expect(borderRadiusPanel).toBeVisible();
+  await expect(
+    borderRadiusPanel.getByRole("button", { name: "Medium", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await dragCanvas(page, { x: 400, y: 180 }, { x: 520, y: 260 });
+  await expect
+    .poll(() => countDarkCanvasPixels(page, { x: 458, y: 179, width: 4, height: 2 }))
+    .toBeLessThanOrEqual(1);
+  await expect
+    .poll(() => countDarkCanvasPixels(page, { x: 456, y: 182, width: 8, height: 5 }))
+    .toBeGreaterThan(0);
+
+  await expect
+    .poll(async () =>
+      (await readPersistedElements(page)).map((element) => ({
+        type: element.type,
+        borderRadius: element.style?.borderRadius,
+      })),
+    )
+    .toEqual([
+      { type: "rectangle", borderRadius: 8 },
+      { type: "diamond", borderRadius: 8 },
+    ]);
+
+  await expect(page.locator("[data-save-state]")).toHaveAttribute("data-state", "saved");
+  await page.reload();
+
+  await expect
+    .poll(async () =>
+      (await readPersistedElements(page)).map((element) => element.style?.borderRadius),
+    )
+    .toEqual([8, 8]);
+  await expect(borderRadiusPanel).toBeHidden();
+
+  await canvas.click({ position: { x: 220, y: 210 } });
+  await expect(borderRadiusPanel).toBeVisible();
+});
+
+test("updates border radius only for eligible shapes with undo and redo", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Rectangle" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  const canvas = page.locator("[data-canvas]");
+  const borderRadiusPanel = page.locator("[data-border-radius-panel]");
+  const textEditor = page.locator("[data-text-editor]");
+
+  await page.getByRole("button", { name: "Rectangle" }).click();
+  await setBorderRadius(page, 8);
+  await dragCanvas(page, { x: 220, y: 180 }, { x: 340, y: 240 });
+
+  await page.getByRole("button", { name: "Diamond" }).click();
+  await setBorderRadius(page, 4);
+  await dragCanvas(page, { x: 400, y: 180 }, { x: 520, y: 260 });
+
+  await page.getByRole("button", { name: "Text" }).click();
+  await canvas.click({ position: { x: 300, y: 340 } });
+  await textEditor.fill("Radius invariant");
+  await textEditor.press("Control+Enter");
+  await expect.poll(() => readPersistedElements(page)).toHaveLength(3);
+
+  const textStyleBefore = (await readPersistedElements(page)).find(
+    (element) => element.type === "text",
+  )?.style;
+
+  await page.keyboard.press("Control+A");
+  await expect(borderRadiusPanel).toBeVisible();
+  await expect(borderRadiusPanel.locator('[data-border-radius][aria-pressed="true"]')).toHaveCount(
+    0,
+  );
+
+  await setBorderRadius(page, 16);
+  await expect
+    .poll(async () => {
+      const elements = await readPersistedElements(page);
+
+      return {
+        rectangle: elements.find((element) => element.type === "rectangle")?.style?.borderRadius,
+        diamond: elements.find((element) => element.type === "diamond")?.style?.borderRadius,
+        textStyle: elements.find((element) => element.type === "text")?.style,
+      };
+    })
+    .toEqual({ rectangle: 16, diamond: 16, textStyle: textStyleBefore });
+
+  await page.keyboard.press("Control+z");
+  await expect
+    .poll(async () =>
+      (await readPersistedElements(page))
+        .filter((element) => element.type === "rectangle" || element.type === "diamond")
+        .map((element) => element.style?.borderRadius),
+    )
+    .toEqual([8, 4]);
+  await expect(borderRadiusPanel.locator('[data-border-radius][aria-pressed="true"]')).toHaveCount(
+    0,
+  );
+
+  await page.keyboard.press("Control+Shift+z");
+  await expect
+    .poll(async () =>
+      (await readPersistedElements(page))
+        .filter((element) => element.type === "rectangle" || element.type === "diamond")
+        .map((element) => element.style?.borderRadius),
+    )
+    .toEqual([16, 16]);
+  await expect(
+    borderRadiusPanel.getByRole("button", { name: "Large", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+
+  await expect(page.locator("[data-save-state]")).toHaveAttribute("data-state", "saved");
+  await page.reload();
+  await expect
+    .poll(async () =>
+      (await readPersistedElements(page))
+        .filter((element) => element.type === "rectangle" || element.type === "diamond")
+        .map((element) => element.style?.borderRadius),
+    )
+    .toEqual([16, 16]);
 });
 
 test("creates ellipses by default and circles when Shift is held", async ({ page }) => {

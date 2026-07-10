@@ -1,6 +1,11 @@
 import { DEFAULT_STYLE } from "@/entities/scene";
 
-import type { ColorPreset, StrokeWidthPreset, TextAlignControl } from "./objectSettingsTypes";
+import type {
+  BorderRadiusPreset,
+  ColorPreset,
+  StrokeWidthPreset,
+  TextAlignControl,
+} from "./objectSettingsTypes";
 
 const TRANSPARENT_COLOR = DEFAULT_STYLE.fill;
 
@@ -27,6 +32,13 @@ export const STROKE_WIDTH_PRESETS: StrokeWidthPreset[] = [
   { label: "Thin", previewHeight: 1, value: 1 },
   { label: "Medium", previewHeight: 2, value: 2 },
   { label: "Thick", previewHeight: 4, value: 4 },
+];
+
+export const BORDER_RADIUS_PRESETS: BorderRadiusPreset[] = [
+  { label: "None", value: 0 },
+  { label: "Small", value: 4 },
+  { label: "Medium", value: 8 },
+  { label: "Large", value: 16 },
 ];
 
 export const TEXT_ALIGN_CONTROLS: TextAlignControl[] = [

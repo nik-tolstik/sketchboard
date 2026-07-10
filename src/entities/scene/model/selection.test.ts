@@ -52,6 +52,41 @@ describe("selection", () => {
     expect(getElementAtPoint([filledRectangle], { x: 40, y: 30 })?.id).toBe(rectangle.id);
   });
 
+  it("hit-tests a transparent rounded rectangle only along its rounded border", () => {
+    const rectangle = createShapeElement("rectangle", { x: 0, y: 0 }, { x: 80, y: 60 });
+    const roundedRectangle = {
+      ...rectangle,
+      style: { ...rectangle.style, borderRadius: 16 as const },
+    };
+
+    expect(getElementAtPoint([roundedRectangle], { x: 0, y: 0 }, 1)).toBeUndefined();
+    expect(getElementAtPoint([roundedRectangle], { x: 4, y: 4 }, 1)?.id).toBe(rectangle.id);
+    expect(getElementAtPoint([roundedRectangle], { x: 40, y: 30 }, 1)).toBeUndefined();
+  });
+
+  it("excludes clipped corners from filled rounded rectangles", () => {
+    const rectangle = createShapeElement("rectangle", { x: 0, y: 0 }, { x: 80, y: 60 });
+    const roundedRectangle = {
+      ...rectangle,
+      style: { ...rectangle.style, fill: "#ffffff", borderRadius: 16 as const },
+    };
+
+    expect(getElementAtPoint([roundedRectangle], { x: 0, y: 0 }, 0)).toBeUndefined();
+    expect(getElementAtPoint([roundedRectangle], { x: 5, y: 5 }, 0)?.id).toBe(rectangle.id);
+    expect(getElementAtPoint([roundedRectangle], { x: 40, y: 30 }, 0)?.id).toBe(rectangle.id);
+  });
+
+  it("hit-tests rounded diamonds while preserving their selectable interior", () => {
+    const diamond = createShapeElement("diamond", { x: 0, y: 0 }, { x: 100, y: 60 });
+    const roundedDiamond = {
+      ...diamond,
+      style: { ...diamond.style, borderRadius: 16 as const },
+    };
+
+    expect(getElementAtPoint([roundedDiamond], { x: 50, y: 0 }, 1)).toBeUndefined();
+    expect(getElementAtPoint([roundedDiamond], { x: 50, y: 30 }, 0)?.id).toBe(diamond.id);
+  });
+
   it("hit-tests ellipses by their curved geometry", () => {
     const ellipse = createShapeElement("ellipse", { x: 0, y: 0 }, { x: 120, y: 60 });
 

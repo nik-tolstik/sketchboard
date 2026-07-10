@@ -8,11 +8,13 @@ import {
 
 export type ObjectSettingsSnapshot = {
   selectionCount: number;
+  hasBorderRadiusSelection: boolean;
   hasSelection: boolean;
   hasTextSelection: boolean;
-  style: Pick<ElementStyle, "fill" | "lineWidth" | "opacity" | "stroke">;
+  style: Pick<ElementStyle, "borderRadius" | "fill" | "lineWidth" | "opacity" | "stroke">;
   textAlign: TextAlign;
   mixed: {
+    borderRadius: boolean;
     fill: boolean;
     lineWidth: boolean;
     opacity: boolean;
@@ -30,6 +32,7 @@ type ObjectSettingsInput = {
 type ObjectStyle = ObjectSettingsSnapshot["style"];
 
 const getCurrentStyle = (style: Partial<ElementStyle>): ObjectStyle => ({
+  borderRadius: style.borderRadius ?? DEFAULT_STYLE.borderRadius,
   fill: style.fill ?? DEFAULT_STYLE.fill,
   lineWidth: style.lineWidth ?? DEFAULT_STYLE.lineWidth,
   opacity: style.opacity ?? DEFAULT_STYLE.opacity,
@@ -63,6 +66,9 @@ const getCommonTextAlign = (elements: TextElement[]): TextAlign | undefined => {
     : undefined;
 };
 
+const isBorderRadiusElement = (element: DrawingElement): boolean =>
+  element.type === "rectangle" || element.type === "diamond";
+
 export const getObjectSettingsSnapshot = ({
   currentStyle,
   currentTextAlign,
@@ -71,11 +77,13 @@ export const getObjectSettingsSnapshot = ({
   if (selectedElements.length === 0) {
     return {
       selectionCount: 0,
+      hasBorderRadiusSelection: false,
       hasSelection: false,
       hasTextSelection: false,
       style: getCurrentStyle(currentStyle),
       textAlign: currentTextAlign,
       mixed: {
+        borderRadius: false,
         fill: false,
         lineWidth: false,
         opacity: false,
@@ -88,15 +96,23 @@ export const getObjectSettingsSnapshot = ({
   const textElements = selectedElements.filter(
     (element): element is TextElement => element.type === "text",
   );
+  const borderRadiusElements = selectedElements.filter(isBorderRadiusElement);
   const firstElement = selectedElements[0];
+  const firstBorderRadiusElement = borderRadiusElements[0];
   const firstTextElement = textElements[0];
   const commonTextAlign = getCommonTextAlign(textElements);
+  const commonBorderRadius = getCommonStyleValue(borderRadiusElements, "borderRadius");
 
   return {
     selectionCount: selectedElements.length,
+    hasBorderRadiusSelection: borderRadiusElements.length > 0,
     hasSelection: true,
     hasTextSelection: textElements.length > 0,
     style: {
+      borderRadius:
+        commonBorderRadius ??
+        firstBorderRadiusElement?.style.borderRadius ??
+        getCurrentStyle(currentStyle).borderRadius,
       fill: getCommonStyleValue(selectedElements, "fill") ?? firstElement.style.fill,
       lineWidth: getCommonStyleValue(selectedElements, "lineWidth") ?? firstElement.style.lineWidth,
       opacity: getCommonStyleValue(selectedElements, "opacity") ?? firstElement.style.opacity,
@@ -104,6 +120,7 @@ export const getObjectSettingsSnapshot = ({
     },
     textAlign: commonTextAlign ?? firstTextElement?.textAlign ?? currentTextAlign,
     mixed: {
+      borderRadius: borderRadiusElements.length > 0 && commonBorderRadius === undefined,
       fill: getCommonStyleValue(selectedElements, "fill") === undefined,
       lineWidth: getCommonStyleValue(selectedElements, "lineWidth") === undefined,
       opacity: getCommonStyleValue(selectedElements, "opacity") === undefined,

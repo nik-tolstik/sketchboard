@@ -1,4 +1,4 @@
-import type { TextAlign } from "@/entities/scene";
+import type { BorderRadius, TextAlign } from "@/entities/scene";
 
 import type { IconName } from "../../config/editorIcon";
 
@@ -12,6 +12,11 @@ export type StrokeWidthPreset = {
   label: string;
   previewHeight: number;
   value: number;
+};
+
+export type BorderRadiusPreset = {
+  label: string;
+  value: BorderRadius;
 };
 
 export type TextAlignControl = {

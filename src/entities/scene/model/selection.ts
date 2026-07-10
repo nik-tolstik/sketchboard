@@ -16,7 +16,8 @@ import {
   getArrowHeadSegment,
   getArrowCurveBounds,
   getArrowCurvePoints,
-  getDiamondPoints,
+  getRoundedContourPoints,
+  getRoundedShapeContour,
   normalizeRect,
   type Rect,
 } from "./geometry";
@@ -229,23 +230,6 @@ const isPointNearRect = (point: Point, rect: Rect, tolerance: number): boolean =
   return Math.hypot(dx, dy) <= tolerance;
 };
 
-const isPointNearRectBorder = (point: Point, rect: Rect, tolerance: number): boolean => {
-  const normalized = normalizeRect(rect);
-  const minX = normalized.x - tolerance;
-  const maxX = normalized.x + normalized.width + tolerance;
-  const minY = normalized.y - tolerance;
-  const maxY = normalized.y + normalized.height + tolerance;
-  const nearLeft = Math.abs(point.x - normalized.x) <= tolerance;
-  const nearRight = Math.abs(point.x - (normalized.x + normalized.width)) <= tolerance;
-  const nearTop = Math.abs(point.y - normalized.y) <= tolerance;
-  const nearBottom = Math.abs(point.y - (normalized.y + normalized.height)) <= tolerance;
-
-  return (
-    ((nearLeft || nearRight) && point.y >= minY && point.y <= maxY) ||
-    ((nearTop || nearBottom) && point.x >= minX && point.x <= maxX)
-  );
-};
-
 const rectsIntersect = (first: Rect, second: Rect): boolean => {
   const a = normalizeRect(first);
   const b = normalizeRect(second);
@@ -290,9 +274,7 @@ const isArrowHit = (element: ArrowElement, point: Point, tolerance: number): boo
 };
 
 const isRectangleHit = (element: ShapeElement, point: Point, tolerance: number): boolean =>
-  hasVisibleFill(element.style.fill)
-    ? isPointNearRect(point, element, tolerance)
-    : isPointNearRectBorder(point, element, tolerance);
+  isRoundedShapeHit("rectangle", element, point, tolerance, hasVisibleFill(element.style.fill));
 
 const isEllipseHit = (element: ShapeElement, point: Point, tolerance: number): boolean => {
   const rect = normalizeRect(element);
@@ -359,12 +341,24 @@ const parseAlpha = (value: string): number => {
 };
 
 const isDiamondHit = (element: ShapeElement, point: Point, tolerance: number): boolean => {
-  const polygon = getDiamondPoints(element);
+  return isRoundedShapeHit("diamond", element, point, tolerance, true);
+};
+
+const isRoundedShapeHit = (
+  type: "rectangle" | "diamond",
+  element: ShapeElement,
+  point: Point,
+  tolerance: number,
+  includeInterior: boolean,
+): boolean => {
+  const contour = getRoundedShapeContour(type, element, element.style.borderRadius ?? 0);
+  const polygon = getRoundedContourPoints(contour);
   const firstPoint = polygon[0];
 
   return (
     Boolean(firstPoint) &&
-    (isPointInPolygon(point, polygon) || isPolylineHit([...polygon, firstPoint], point, tolerance))
+    ((includeInterior && isPointInPolygon(point, polygon)) ||
+      isPolylineHit([...polygon, firstPoint], point, tolerance))
   );
 };
 
