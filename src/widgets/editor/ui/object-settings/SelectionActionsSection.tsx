@@ -3,7 +3,7 @@ import { Button } from "@/shared/ui/button";
 
 import { useEditorRuntime } from "../../model/useEditorRuntime";
 import { EditorIcon } from "../EditorIcon";
-import { actionButtonClassName } from "./objectSettingsClasses";
+import { iconButtonClassName } from "./objectSettingsClasses";
 
 export function SelectionActionsSection() {
   const copySelection = useEditorRuntime((runtime) => runtime.copySelection);
@@ -14,7 +14,7 @@ export function SelectionActionsSection() {
   return (
     <div
       className={cn(
-        "col-span-full grid grid-cols-2 gap-1.5 px-3 py-2.5",
+        "col-span-full flex justify-end gap-1.5 px-3 py-2.5",
         !hasSelection && "hidden",
       )}
       data-selection-actions
@@ -23,32 +23,32 @@ export function SelectionActionsSection() {
       <Button
         aria-label={selectionCount === 1 ? "Copy object" : "Copy objects"}
         className={cn(
-          actionButtonClassName,
+          iconButtonClassName,
           "bg-secondary text-secondary-foreground hover:bg-accent hover:text-accent-foreground",
         )}
         data-copy-selection
         disabled={!hasSelection}
         onClick={copySelection}
+        title={selectionCount === 1 ? "Copy object" : "Copy objects"}
         type="button"
         variant="ghost"
       >
-        <EditorIcon iconPosition="inline-start" name="copy" />
-        <span>Copy</span>
+        <EditorIcon name="copy" />
       </Button>
       <Button
         aria-label={selectionCount === 1 ? "Delete object" : "Delete objects"}
         className={cn(
-          actionButtonClassName,
+          iconButtonClassName,
           "bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive",
         )}
         data-delete-selection
         disabled={!hasSelection}
         onClick={deleteSelection}
+        title={selectionCount === 1 ? "Delete object" : "Delete objects"}
         type="button"
         variant="ghost"
       >
-        <EditorIcon iconPosition="inline-start" name="delete" />
-        <span>Delete</span>
+        <EditorIcon name="delete" />
       </Button>
     </div>
   );
