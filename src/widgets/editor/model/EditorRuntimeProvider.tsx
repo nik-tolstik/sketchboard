@@ -12,11 +12,12 @@ import {
   type Tool,
 } from "@/entities/scene";
 
-import { TOOLS } from "../config/editorConfig";
 import { CanvasRenderer, type CanvasRenderOptions } from "../lib/CanvasRenderer";
 import { getInlineTextEditorMetrics } from "../lib/textEditorMetrics";
 import { measureTextElementWidth } from "../lib/textMeasurement";
-import { EditorController, type ObjectSettingsSnapshot } from "./EditorController";
+import { EditorController } from "./EditorController";
+import { getEditorShortcut } from "./editorShortcuts";
+import type { ObjectSettingsSnapshot } from "./objectSettings";
 import { EditorRuntimeContext, type EditorRuntime } from "./useEditorRuntime";
 
 const DEFAULT_STROKE_COLOR = DEFAULT_STYLE.stroke;
@@ -85,6 +86,8 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
     let latestScene = store.getSnapshot();
     let latestRenderOptions: CanvasRenderOptions = {};
     let closeOpenTextEditor: (() => void) | undefined;
+    let controller: EditorController | undefined;
+    let disposed = false;
 
     const renderWithPreview = (options: CanvasRenderOptions = {}): void => {
       latestRenderOptions = options;
@@ -92,6 +95,10 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
     };
 
     const updateObjectSettingsState = (): void => {
+      if (!controller) {
+        return;
+      }
+
       const settings = controller.getObjectSettings();
 
       setHasSelection(settings.hasSelection);
@@ -192,24 +199,6 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
       }, 0);
     };
 
-    const controller = new EditorController(
-      canvas,
-      store,
-      renderWithPreview,
-      (nextIsPanning) => {
-        canvas.dataset.panning = String(nextIsPanning);
-        setIsPanning(nextIsPanning);
-      },
-      openTextEditor,
-      updateObjectSettingsState,
-      setActiveTool,
-    );
-
-    controllerRef.current = controller;
-    storeRef.current = store;
-    setActiveTool(controller.getTool());
-    updateObjectSettingsState();
-
     const resizeObserver = new ResizeObserver(() => {
       renderer.resize();
       renderer.render(latestScene, latestRenderOptions);
@@ -221,8 +210,12 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
     const unsubscribeScene = store.subscribe((scene) => {
       latestScene = scene;
       setZoom(scene.viewport.zoom);
-      renderer.render(scene, latestRenderOptions);
-      controller.refreshSelection();
+
+      if (controller) {
+        controller.refreshSelection(scene);
+      } else {
+        renderer.render(scene, latestRenderOptions);
+      }
     });
 
     const unsubscribeSaveState = store.subscribeSaveState(setSaveState);
@@ -239,106 +232,84 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
         return;
       }
 
-      const isModifierShortcut = event.ctrlKey || event.metaKey;
-      const isZKey = event.key.toLowerCase() === "z" || event.code === "KeyZ";
-      const isAKey = event.key.toLowerCase() === "a" || event.code === "KeyA";
-      const isCKey = event.key.toLowerCase() === "c" || event.code === "KeyC";
-      const isVKey = event.key.toLowerCase() === "v" || event.code === "KeyV";
-      const isZoomInKey =
-        event.key === "+" ||
-        event.key === "=" ||
-        event.code === "Equal" ||
-        event.code === "NumpadAdd";
-      const isZoomOutKey =
-        event.key === "-" ||
-        event.key === "_" ||
-        event.code === "Minus" ||
-        event.code === "NumpadSubtract";
-      const isResetZoomKey =
-        event.key === "0" || event.code === "Digit0" || event.code === "Numpad0";
+      const shortcut = getEditorShortcut(event);
 
-      if (event.key === "Delete" || event.key === "Backspace") {
-        event.preventDefault();
-        currentController.deleteSelection();
+      if (!shortcut) {
         return;
       }
 
-      if (isModifierShortcut && isZKey) {
-        event.preventDefault();
+      event.preventDefault();
 
-        if (event.shiftKey) {
+      switch (shortcut.type) {
+        case "copy-selection":
+          currentController.copySelection();
+          return;
+        case "delete-selection":
+          currentController.deleteSelection();
+          return;
+        case "paste-selection":
+          currentController.pasteSelection();
+          return;
+        case "redo":
           currentStore.redo();
-        } else {
+          return;
+        case "reset-zoom":
+          currentController.resetZoom();
+          return;
+        case "select-all":
+          currentController.selectAll();
+          return;
+        case "set-tool":
+          currentController.setTool(shortcut.tool);
+          return;
+        case "undo":
           currentStore.undo();
-        }
-
-        currentController.refreshSelection();
-        return;
+          return;
+        case "zoom-in":
+          currentController.zoomIn();
+          return;
+        case "zoom-out":
+          currentController.zoomOut();
       }
-
-      if (isModifierShortcut && isAKey) {
-        event.preventDefault();
-        currentController.selectAll();
-        return;
-      }
-
-      if (isModifierShortcut && isCKey) {
-        event.preventDefault();
-        currentController.copySelection();
-        return;
-      }
-
-      if (isModifierShortcut && isVKey) {
-        event.preventDefault();
-        currentController.pasteSelection();
-        return;
-      }
-
-      if (isModifierShortcut && isZoomInKey) {
-        event.preventDefault();
-        currentController.zoomIn();
-        return;
-      }
-
-      if (isModifierShortcut && isZoomOutKey) {
-        event.preventDefault();
-        currentController.zoomOut();
-        return;
-      }
-
-      if (isModifierShortcut && isResetZoomKey) {
-        event.preventDefault();
-        currentController.resetZoom();
-        return;
-      }
-
-      if (isModifierShortcut) {
-        return;
-      }
-
-      const nextTool = TOOLS.find(
-        (candidate) =>
-          candidate.shortcut.toLowerCase() === event.key.toLowerCase() ||
-          candidate.numericShortcut === event.key,
-      );
-
-      if (!nextTool) {
-        return;
-      }
-
-      currentController.setTool(nextTool.id);
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    void store.hydrate();
+    const initialize = async (): Promise<void> => {
+      await store.hydrate();
+
+      if (disposed) {
+        return;
+      }
+
+      controller = new EditorController(
+        canvas,
+        store,
+        renderWithPreview,
+        (nextIsPanning) => {
+          canvas.dataset.panning = String(nextIsPanning);
+          setIsPanning(nextIsPanning);
+        },
+        openTextEditor,
+        updateObjectSettingsState,
+        setActiveTool,
+      );
+
+      controllerRef.current = controller;
+      storeRef.current = store;
+      setActiveTool(controller.getTool());
+      updateObjectSettingsState();
+      window.addEventListener("keydown", handleKeyDown);
+    };
+
+    void initialize();
 
     return () => {
+      disposed = true;
       window.removeEventListener("keydown", handleKeyDown);
       unsubscribeScene();
       unsubscribeSaveState();
       resizeObserver.disconnect();
       closeOpenTextEditor?.();
-      controller.destroy();
+      controller?.destroy();
       controllerRef.current = null;
       storeRef.current = null;
       setIsPanning(false);
@@ -383,7 +354,6 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
 
   const clearScene = useCallback((): void => {
     storeRef.current?.clear();
-    controllerRef.current?.refreshSelection();
   }, []);
 
   const exportPng = useCallback((): void => {

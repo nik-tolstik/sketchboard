@@ -1,9 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createTextElement, type SceneSnapshot } from "./elements";
 import { createEmptyScene } from "./scene";
+import type { SceneRepository } from "./sceneRepository";
 import { SceneStore } from "./SceneStore";
 
-const createRepository = (initialScene: SceneSnapshot = createEmptyScene()) => {
+type TestSceneRepository = SceneRepository & {
+  saved: SceneSnapshot[];
+};
+
+const createRepository = (
+  initialScene: SceneSnapshot = createEmptyScene(),
+): TestSceneRepository => {
   const saved: SceneSnapshot[] = [];
 
   return {
@@ -12,34 +19,44 @@ const createRepository = (initialScene: SceneSnapshot = createEmptyScene()) => {
       return initialScene;
     },
     async save(scene: SceneSnapshot) {
-      saved.push(scene);
-    },
-    async clear() {
-      saved.length = 0;
+      saved.push(structuredClone(scene));
     },
   };
 };
 
+const createStore = async (
+  initialScene: SceneSnapshot = createEmptyScene(),
+): Promise<{ repository: TestSceneRepository; store: SceneStore }> => {
+  const repository = createRepository(initialScene);
+  const store = new SceneStore(repository);
+
+  await store.hydrate();
+
+  return { repository, store };
+};
+
+const getElementTexts = (store: SceneStore): string[] =>
+  store
+    .getSnapshot()
+    .elements.filter((element) => element.type === "text")
+    .map((element) => element.text);
+
 describe("SceneStore", () => {
   it("undoes and redoes element changes", async () => {
-    const repository = createRepository();
-    const store = new SceneStore(repository);
-    await store.hydrate();
+    const { store } = await createStore();
 
     store.addElement(createTextElement({ x: 10, y: 10 }, "first"));
     store.addElement(createTextElement({ x: 20, y: 20 }, "second"));
 
-    expect(store.getSnapshot().elements).toHaveLength(2);
+    expect(getElementTexts(store)).toEqual(["first", "second"]);
     expect(store.undo()).toBe(true);
-    expect(store.getSnapshot().elements.map((element) => element.type)).toEqual(["text"]);
+    expect(getElementTexts(store)).toEqual(["first"]);
     expect(store.redo()).toBe(true);
-    expect(store.getSnapshot().elements).toHaveLength(2);
+    expect(getElementTexts(store)).toEqual(["first", "second"]);
   });
 
   it("does not add viewport updates to the undo history", async () => {
-    const repository = createRepository();
-    const store = new SceneStore(repository);
-    await store.hydrate();
+    const { store } = await createStore();
 
     store.addElement(createTextElement({ x: 10, y: 10 }, "first"));
     store.updateViewport({ x: 100, y: 50, zoom: 2 });
@@ -50,9 +67,7 @@ describe("SceneStore", () => {
   });
 
   it("removes elements as one undoable change", async () => {
-    const repository = createRepository();
-    const store = new SceneStore(repository);
-    await store.hydrate();
+    const { store } = await createStore();
     const first = createTextElement({ x: 10, y: 10 }, "first");
     const second = createTextElement({ x: 20, y: 20 }, "second");
 
@@ -60,15 +75,13 @@ describe("SceneStore", () => {
     store.addElement(second);
     store.removeElements(new Set([first.id, second.id]));
 
-    expect(store.getSnapshot().elements).toHaveLength(0);
+    expect(getElementTexts(store)).toEqual([]);
     expect(store.undo()).toBe(true);
-    expect(store.getSnapshot().elements).toHaveLength(2);
+    expect(getElementTexts(store)).toEqual(["first", "second"]);
   });
 
   it("adds pasted elements and applies selected styles as undoable changes", async () => {
-    const repository = createRepository();
-    const store = new SceneStore(repository);
-    await store.hydrate();
+    const { store } = await createStore();
     const first = createTextElement({ x: 10, y: 10 }, "first");
     const second = createTextElement({ x: 20, y: 20 }, "second");
 
@@ -83,9 +96,7 @@ describe("SceneStore", () => {
   });
 
   it("assigns new elements to increasing top layers", async () => {
-    const repository = createRepository();
-    const store = new SceneStore(repository);
-    await store.hydrate();
+    const { store } = await createStore();
     const first = createTextElement({ x: 10, y: 10 }, "first");
     const second = createTextElement({ x: 20, y: 20 }, "second");
 
@@ -96,9 +107,7 @@ describe("SceneStore", () => {
   });
 
   it("moves selected elements through layer order", async () => {
-    const repository = createRepository();
-    const store = new SceneStore(repository);
-    await store.hydrate();
+    const { store } = await createStore();
     const first = createTextElement({ x: 10, y: 10 }, "first");
     const second = createTextElement({ x: 20, y: 20 }, "second");
     const third = createTextElement({ x: 30, y: 30 }, "third");
@@ -119,9 +128,7 @@ describe("SceneStore", () => {
   });
 
   it("keeps layer changes undoable", async () => {
-    const repository = createRepository();
-    const store = new SceneStore(repository);
-    await store.hydrate();
+    const { store } = await createStore();
     const first = createTextElement({ x: 10, y: 10 }, "first");
     const second = createTextElement({ x: 20, y: 20 }, "second");
 
@@ -134,9 +141,7 @@ describe("SceneStore", () => {
   });
 
   it("updates text alignment as an undoable change", async () => {
-    const repository = createRepository();
-    const store = new SceneStore(repository);
-    await store.hydrate();
+    const { store } = await createStore();
     const element = createTextElement({ x: 10, y: 10 }, "first");
 
     store.addElement(element);
@@ -148,9 +153,7 @@ describe("SceneStore", () => {
   });
 
   it("replaces moved elements as one undoable change", async () => {
-    const repository = createRepository();
-    const store = new SceneStore(repository);
-    await store.hydrate();
+    const { store } = await createStore();
     const element = createTextElement({ x: 10, y: 10 }, "first");
 
     store.addElement(element);
@@ -159,5 +162,42 @@ describe("SceneStore", () => {
     expect(store.getSnapshot().elements[0]).toMatchObject({ x: 80, y: 90 });
     expect(store.undo()).toBe(true);
     expect(store.getSnapshot().elements[0]).toMatchObject({ x: 10, y: 10 });
+  });
+
+  it("debounces saves and persists the latest scene snapshot", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const { repository, store } = await createStore();
+
+      store.addElement(createTextElement({ x: 10, y: 10 }, "first"));
+      store.addElement(createTextElement({ x: 20, y: 20 }, "second"));
+
+      expect(repository.saved).toEqual([]);
+
+      await vi.advanceTimersByTimeAsync(250);
+
+      expect(repository.saved).toHaveLength(1);
+      expect(
+        repository.saved[0]?.elements
+          .filter((element) => element.type === "text")
+          .map((element) => element.text),
+      ).toEqual(["first", "second"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears redo history after a new edit", async () => {
+    const { store } = await createStore();
+
+    store.addElement(createTextElement({ x: 10, y: 10 }, "first"));
+    store.addElement(createTextElement({ x: 20, y: 20 }, "second"));
+
+    expect(store.undo()).toBe(true);
+    store.addElement(createTextElement({ x: 30, y: 30 }, "replacement"));
+
+    expect(store.redo()).toBe(false);
+    expect(getElementTexts(store)).toEqual(["first", "replacement"]);
   });
 });

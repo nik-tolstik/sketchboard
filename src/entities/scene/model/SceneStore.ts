@@ -1,12 +1,10 @@
-import type { IndexedDbSceneRepository } from "../api/indexedDbSceneRepository";
 import type { DrawingElement, ElementStyle, SceneSnapshot, TextAlign, Viewport } from "./elements";
 import { createEmptyScene } from "./scene";
+import type { SceneRepository } from "./sceneRepository";
 import { applyElementStyle, getElementsInLayerOrder } from "./selection";
 
 type Listener = (scene: SceneSnapshot) => void;
 type SaveStateListener = (state: SaveState) => void;
-type SceneRepository = Pick<IndexedDbSceneRepository, "load" | "save" | "clear">;
-
 export type SaveState = "idle" | "loading" | "saving" | "saved" | "error";
 export type LayerOrderCommand = "backward" | "forward" | "front" | "back";
 

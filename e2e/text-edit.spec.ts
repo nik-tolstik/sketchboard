@@ -69,6 +69,7 @@ const LONG_UNINTERRUPTED_TEXT = "123456789123456789123456789123456789";
 const TEXT_LINE_HEIGHT = 1.3;
 const TEXT_RENDERER_HORIZONTAL_INSET = 6;
 const TRANSPARENT_COLOR = "rgba(255, 255, 255, 0)";
+const OPAQUE_FILL_COLOR = "#f3f0e8";
 
 const readPersistedScene = async (page: Page): Promise<PersistedScene | undefined> =>
   page.evaluate(
@@ -313,13 +314,16 @@ const setStrokeWidth = async (page: Page, lineWidth: number): Promise<void> => {
 };
 
 const setOpacity = async (page: Page, opacityPercent: number): Promise<void> => {
-  await page.locator("[data-opacity-control]").evaluate((element, nextOpacityPercent) => {
-    const input = element as HTMLInputElement;
+  const track = page.locator('[data-opacity-control] [data-slot="slider-track"]');
+  const trackBox = await track.boundingBox();
 
-    input.value = String(nextOpacityPercent);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
-  }, opacityPercent);
+  expect(trackBox).not.toBeNull();
+
+  await page.mouse.click(
+    trackBox!.x + (trackBox!.width * opacityPercent) / 100,
+    trackBox!.y + trackBox!.height / 2,
+  );
+  await expect(page.locator("[data-opacity-value]")).toHaveText(`${opacityPercent}%`);
 };
 
 const wheelCanvas = async (
@@ -452,6 +456,53 @@ test("pans the canvas with the Pan tool without creating history entries", async
     });
 });
 
+test("restores the saved scene and viewport without restoring selection history", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+
+  const canvas = page.locator("[data-canvas]");
+  const textEditor = page.locator("[data-text-editor]");
+
+  await page.getByRole("button", { name: "Text" }).click();
+  await canvas.click({ position: { x: 320, y: 260 } });
+  await textEditor.fill("Reloaded note");
+  await textEditor.press("Control+Enter");
+  await expect.poll(() => readPersistedTexts(page)).toEqual(["Reloaded note"]);
+  await expect(page.locator("[data-selection-actions]")).toBeVisible();
+
+  await wheelCanvas(page, { x: 320, y: 260 }, 120);
+  await expect(page.locator("[data-save-state]")).toHaveAttribute("data-state", "saved");
+
+  const viewportBeforeReload = await readPersistedViewport(page);
+
+  expect(viewportBeforeReload).toBeDefined();
+  expect(viewportBeforeReload?.y).not.toBe(0);
+  await page.reload();
+
+  await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
+  await expect.poll(() => readPersistedTexts(page)).toEqual(["Reloaded note"]);
+  await expect.poll(() => readPersistedViewport(page)).toEqual(viewportBeforeReload);
+  await expect(page.locator("[data-selection-actions]")).toBeHidden();
+  await expect
+    .poll(() =>
+      countDarkCanvasPixels(page, {
+        x: 0,
+        y: 0,
+        width: 1000,
+        height: 700,
+      }),
+    )
+    .toBeGreaterThan(0);
+
+  await page.keyboard.press("Control+Z");
+  await expect.poll(() => readPersistedTexts(page)).toEqual(["Reloaded note"]);
+});
+
 test("shows toolbar shortcut digits and immediate tooltips", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
@@ -510,7 +561,7 @@ test("shows object settings for drawing tools and selected objects", async ({ pa
   await expect(objectSettingsPanel).toBeVisible();
   await expect(objectSettingsPanel.locator('input[type="color"]')).toHaveCount(0);
   await expect(objectSettingsPanel.locator("[data-stroke-color]")).toHaveCount(7);
-  await expect(objectSettingsPanel.locator("[data-fill-color]")).toHaveCount(7);
+  await expect(objectSettingsPanel.locator("[data-fill-color]")).toHaveCount(6);
   await expect(objectSettingsPanel.locator("[data-opacity-control]")).toBeVisible();
   await expect(objectSettingsPanel.locator("[data-text-align-panel]")).toBeVisible();
   await expect(objectSettingsPanel.locator("[data-text-align]")).toHaveCount(3);
@@ -589,6 +640,7 @@ test("shows object settings for drawing tools and selected objects", async ({ pa
 
   await expect(objectSettingsPanel.locator("[data-selection-actions]")).toBeVisible();
   await objectSettingsPanel.locator("[data-copy-selection]").click();
+  await page.keyboard.press("Control+V");
   await expect.poll(() => readPersistedElements(page)).toHaveLength(3);
 
   await objectSettingsPanel.locator("[data-delete-selection]").click();
@@ -1076,7 +1128,7 @@ test("selects through unfilled rectangle interiors and respects filled ones", as
   await textEditor.press("Control+Enter");
   await expect.poll(() => readPersistedTexts(page)).toEqual(["Covered label"]);
 
-  await setFillColor(page, "#ffffff");
+  await setFillColor(page, OPAQUE_FILL_COLOR);
   await page.getByRole("button", { name: "Rectangle" }).click();
   await dragCanvas(page, { x: 280, y: 220 }, { x: 560, y: 360 });
   await expect.poll(() => readPersistedElements(page)).toHaveLength(2);
@@ -1186,7 +1238,7 @@ test("moves selected elements with the left layer panel", async ({ page }) => {
   await textEditor.fill("Layer label");
   await textEditor.press("Control+Enter");
 
-  await setFillColor(page, "#ffffff");
+  await setFillColor(page, OPAQUE_FILL_COLOR);
   await page.getByRole("button", { name: "Rectangle" }).click();
   await dragCanvas(page, { x: 280, y: 220 }, { x: 560, y: 360 });
   await expect.poll(() => readPersistedLayers(page)).toEqual([0, 1]);

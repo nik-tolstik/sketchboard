@@ -3,7 +3,7 @@ import { createContext, useContextSelector } from "use-context-selector";
 
 import type { LayerOrderCommand, SaveState, TextAlign, Tool } from "@/entities/scene";
 
-import type { ObjectSettingsSnapshot } from "./EditorController";
+import type { ObjectSettingsSnapshot } from "./objectSettings";
 
 export type EditorRuntime = {
   activeTool: Tool;

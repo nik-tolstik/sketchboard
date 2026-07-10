@@ -11,7 +11,7 @@ The project follows the FSD import rule: a layer can import only from layers bel
 3. `src/pages/board` selects the editor widget for the current screen.
 4. `src/widgets/editor/ui/EditorWidget.tsx` mounts the editor runtime provider and delegates the editor surface to focused UI components.
 5. `src/widgets/editor/model/EditorRuntimeProvider.tsx` and `src/widgets/editor/model/useEditorRuntime.ts` expose runtime state/actions through selector-based context while wiring refs/state to IndexedDB persistence, global keyboard shortcuts, the canvas renderer, and the editor controller.
-6. `EditorController` receives pointer and keyboard-driven commands, translates screen coordinates into world coordinates, and decides which entity operation should happen.
+6. The runtime hydrates the scene before binding editor input, then `EditorController` receives pointer and keyboard-driven commands, translates screen coordinates into world coordinates, and decides which entity operation should happen.
 7. `SceneStore` owns the current scene, undo/redo stacks, and autosave scheduling.
 8. `CanvasRenderer` draws the canvas background, latest scene snapshot, and transient UI overlays onto the `<canvas>`.
 9. `IndexedDbSceneRepository` persists the normalized scene into browser IndexedDB.
@@ -42,6 +42,8 @@ The app layer can import from any lower layer, but should stay thin.
 - `ui/EditorIcon.tsx` and `ui/icons.ts`: editor-specific icon rendering and icon registry.
 - `model/EditorRuntimeProvider.tsx` and `model/useEditorRuntime.ts`: `use-context-selector` backed lifecycle glue between React refs/state and imperative editor classes.
 - `model/EditorController.ts`: tool state, pointer interactions, selection drag, copy/paste, text creation, panning, and export.
+- `model/editorShortcuts.ts`: pure keyboard-event to editor-command mapping.
+- `model/objectSettings.ts`: pure projection from the current selection to object-settings UI state.
 - `lib/CanvasRenderer.ts`: imperative canvas drawing for the white canvas background, elements, previews, selection outlines, and selection boxes.
 - `config/editorConfig.ts`: toolbar and layer-control metadata.
 
@@ -57,6 +59,7 @@ For standard editor controls, prefer shadcn/ui primitives from `src/shared/ui` b
 - `model/selection.ts`: bounds, hit-testing, area selection, translation, cloning, and style application.
 - `model/scene.ts`: empty-scene creation and persisted-scene normalization/migration.
 - `model/SceneStore.ts`: active snapshot, undo/redo stacks, subscriptions, and autosave scheduling.
+- `model/sceneRepository.ts`: persistence port consumed by `SceneStore`.
 - `api/indexedDbSceneRepository.ts`: IndexedDB adapter for the default scene record in `sketchboard-db`.
 
 Entity model modules should not depend on React or DOM APIs. Keep them testable with Vitest.

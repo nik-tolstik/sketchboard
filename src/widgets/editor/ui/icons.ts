@@ -22,21 +22,9 @@ import {
 } from "lucide-react";
 import { createElement, type ReactElement } from "react";
 
-import type { Tool } from "@/entities/scene";
+import type { IconName } from "../config/editorIcon";
 
-export type IconName =
-  | Tool
-  | "alignCenter"
-  | "alignLeft"
-  | "alignRight"
-  | "clear"
-  | "copy"
-  | "delete"
-  | "export"
-  | "layerBackward"
-  | "layerForward"
-  | "layerToBack"
-  | "layerToFront";
+export type { IconName } from "../config/editorIcon";
 
 const icons: Record<IconName, LucideIcon> = {
   pan: Hand,

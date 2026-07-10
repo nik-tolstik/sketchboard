@@ -1,6 +1,6 @@
 import type { LayerOrderCommand, Tool } from "@/entities/scene";
 
-import type { IconName } from "../ui/icons";
+import type { IconName } from "./editorIcon";
 
 export type ToolDefinition = {
   id: Tool;

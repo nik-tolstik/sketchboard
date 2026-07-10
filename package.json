@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc && vite build",
+    "build": "pnpm typecheck && vite build",
     "e2e": "playwright test",
     "test": "vitest run",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.e2e.json",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -22,7 +23,6 @@
     "@vitejs/plugin-react": "^6.0.3",
     "eslint": "^9.31.0",
     "eslint-config-prettier": "^10.1.5",
-    "eslint-plugin-only-warn": "^1.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
     "eslint-plugin-unused-imports": "^4.4.1",

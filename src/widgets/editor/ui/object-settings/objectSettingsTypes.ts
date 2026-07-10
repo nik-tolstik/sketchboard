@@ -1,6 +1,6 @@
 import type { TextAlign } from "@/entities/scene";
 
-import type { IconName } from "../icons";
+import type { IconName } from "../../config/editorIcon";
 
 export type ColorPreset = {
   label: string;

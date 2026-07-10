@@ -1,5 +1,6 @@
 import type { SceneSnapshot } from "../model/elements";
 import { createEmptyScene, normalizeScene } from "../model/scene";
+import type { SceneRepository } from "../model/sceneRepository";
 
 const DB_NAME = "sketchboard-db";
 const STORE_NAME = "scenes";
@@ -46,7 +47,7 @@ const runTransaction = async <T>(
   });
 };
 
-export class IndexedDbSceneRepository {
+export class IndexedDbSceneRepository implements SceneRepository {
   async load(): Promise<SceneSnapshot> {
     if (!("indexedDB" in window)) {
       return createEmptyScene();
