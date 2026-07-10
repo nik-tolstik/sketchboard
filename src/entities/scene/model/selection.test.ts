@@ -90,6 +90,17 @@ describe("selection", () => {
     expect(getElementAtPoint([arrow], { x: 50, y: 0 }, 4)).toBeUndefined();
   });
 
+  it("hit-tests the visible arrow curve instead of its old straight chords", () => {
+    const arrow = createArrowElement([
+      { x: 0, y: 0 },
+      { x: 50, y: 100 },
+      { x: 100, y: 0 },
+    ]);
+
+    expect(getElementAtPoint([arrow], { x: 21.875, y: 56.25 }, 2)?.id).toBe(arrow.id);
+    expect(getElementAtPoint([arrow], { x: 25, y: 50 }, 2)).toBeUndefined();
+  });
+
   it("includes arrow points in bounds and clones", () => {
     const arrow = createArrowElement([
       { x: 0, y: 0 },

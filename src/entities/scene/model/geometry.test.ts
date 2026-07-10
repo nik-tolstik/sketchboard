@@ -4,9 +4,13 @@ import {
   MIN_VIEWPORT_ZOOM,
   clampViewportZoom,
   constrainToSquareDelta,
+  getArrowCurveBounds,
+  getArrowCurvePoints,
+  getArrowCurveSegments,
   getArrowHead,
   getArrowHeadSegment,
   getDiamondPoints,
+  getPointOnCubicBezier,
   normalizeRect,
   screenToWorld,
   shouldAppendPoint,
@@ -71,16 +75,80 @@ describe("geometry", () => {
     expect(getArrowHead({ x: 0, y: 0 }, { x: 40, y: 0 })).toHaveLength(2);
   });
 
-  it("uses the last non-zero arrow segment for the arrowhead", () => {
-    expect(
-      getArrowHeadSegment([
-        { x: 0, y: 0 },
-        { x: 40, y: 20 },
-        { x: 40, y: 20 },
-      ]),
-    ).toEqual([
+  it("builds a smooth arrow curve that passes through every point", () => {
+    const points = [
       { x: 0, y: 0 },
+      { x: 50, y: 100 },
+      { x: 100, y: 0 },
+    ];
+    const segments = getArrowCurveSegments(points);
+    const sampledPoints = getArrowCurvePoints(points);
+
+    expect(segments).toHaveLength(2);
+    expect(sampledPoints).toContainEqual(points[0]);
+    expect(sampledPoints).toContainEqual(points[1]);
+    expect(sampledPoints).toContainEqual(points[2]);
+    expect(getPointOnCubicBezier(segments[0]!, 0.5)).toEqual({ x: 21.875, y: 56.25 });
+    expect(segments[0]?.control2.y).toBe(segments[1]?.control1.y);
+  });
+
+  it("keeps collinear arrows straight", () => {
+    const sampledPoints = getArrowCurvePoints([
+      { x: 0, y: 20 },
       { x: 40, y: 20 },
+      { x: 100, y: 20 },
     ]);
+
+    for (const point of sampledPoints) {
+      expect(point.y).toBeCloseTo(20);
+    }
+  });
+
+  it("ignores repeated arrow points without producing invalid geometry", () => {
+    const segments = getArrowCurveSegments([
+      { x: 0, y: 0 },
+      { x: 0, y: 0 },
+      { x: 50, y: 40 },
+      { x: 50, y: 40 },
+      { x: 100, y: 0 },
+    ]);
+
+    expect(segments).toHaveLength(2);
+    expect(
+      segments.every((segment) =>
+        Object.values(segment).every(
+          (point) => Number.isFinite(point.x) && Number.isFinite(point.y),
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("uses the final curve tangent for the arrowhead", () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 50, y: 100 },
+      { x: 100, y: 0 },
+    ];
+    const finalSegment = getArrowCurveSegments(points).at(-1)!;
+
+    expect(getArrowHeadSegment(points)).toEqual([finalSegment.control2, finalSegment.end]);
+  });
+
+  it("includes curved extrema in arrow bounds", () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 40, y: 100 },
+      { x: 80, y: -100 },
+      { x: 120, y: 0 },
+    ];
+    const bounds = getArrowCurveBounds(points);
+    const sampledPoints = getArrowCurvePoints(points);
+
+    expect(
+      sampledPoints.every((point) => point.x >= bounds.x && point.x <= bounds.x + bounds.width),
+    ).toBe(true);
+    expect(
+      sampledPoints.every((point) => point.y >= bounds.y && point.y <= bounds.y + bounds.height),
+    ).toBe(true);
   });
 });

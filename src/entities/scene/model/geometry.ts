@@ -11,6 +11,15 @@ export type Rect = {
   height: number;
 };
 
+export type CubicBezierSegment = {
+  start: Point;
+  control1: Point;
+  control2: Point;
+  end: Point;
+};
+
+const ARROW_CURVE_SAMPLE_STEP = 8;
+
 export const clampViewportZoom = (zoom: number): number => {
   if (!Number.isFinite(zoom)) {
     return 1;
@@ -112,22 +121,154 @@ export const getDiamondPoints = (rect: Rect): Point[] => {
   ];
 };
 
-export const getArrowHeadSegment = (points: Point[]): [Point, Point] | undefined => {
-  const end = points.at(-1);
+const getUniqueConsecutivePoints = (points: Point[]): Point[] =>
+  points.reduce<Point[]>((uniquePoints, point) => {
+    const previous = uniquePoints.at(-1);
 
-  if (!end) {
-    return undefined;
+    if (!previous || distance(previous, point) > 0.001) {
+      uniquePoints.push(point);
+    }
+
+    return uniquePoints;
+  }, []);
+
+export const getArrowCurveSegments = (points: Point[]): CubicBezierSegment[] => {
+  const curvePoints = getUniqueConsecutivePoints(points);
+
+  return curvePoints.slice(0, -1).map((start, index) => {
+    const previous = curvePoints[index - 1] ?? start;
+    const end = curvePoints[index + 1] ?? start;
+    const next = curvePoints[index + 2] ?? end;
+
+    return {
+      start,
+      control1: {
+        x: start.x + (end.x - previous.x) / 6,
+        y: start.y + (end.y - previous.y) / 6,
+      },
+      control2: {
+        x: end.x - (next.x - start.x) / 6,
+        y: end.y - (next.y - start.y) / 6,
+      },
+      end,
+    };
+  });
+};
+
+export const getPointOnCubicBezier = (segment: CubicBezierSegment, t: number): Point => {
+  const progress = Math.min(1, Math.max(0, t));
+  const remaining = 1 - progress;
+
+  return {
+    x:
+      remaining ** 3 * segment.start.x +
+      3 * remaining ** 2 * progress * segment.control1.x +
+      3 * remaining * progress ** 2 * segment.control2.x +
+      progress ** 3 * segment.end.x,
+    y:
+      remaining ** 3 * segment.start.y +
+      3 * remaining ** 2 * progress * segment.control1.y +
+      3 * remaining * progress ** 2 * segment.control2.y +
+      progress ** 3 * segment.end.y,
+  };
+};
+
+export const getArrowCurvePoints = (points: Point[]): Point[] => {
+  const segments = getArrowCurveSegments(points);
+  const firstSegment = segments[0];
+
+  if (!firstSegment) {
+    return points[0] ? [{ ...points[0] }] : [];
   }
 
-  for (let index = points.length - 2; index >= 0; index -= 1) {
-    const start = points[index];
+  const sampledPoints: Point[] = [{ ...firstSegment.start }];
 
-    if (start && distance(start, end) > 0.001) {
-      return [start, end];
+  for (const segment of segments) {
+    const controlPolygonLength =
+      distance(segment.start, segment.control1) +
+      distance(segment.control1, segment.control2) +
+      distance(segment.control2, segment.end);
+    const subdivisions = Math.max(4, Math.ceil(controlPolygonLength / ARROW_CURVE_SAMPLE_STEP));
+
+    for (let step = 1; step <= subdivisions; step += 1) {
+      sampledPoints.push(getPointOnCubicBezier(segment, step / subdivisions));
     }
   }
 
-  return undefined;
+  return sampledPoints;
+};
+
+const getCubicBezierExtrema = (
+  start: number,
+  control1: number,
+  control2: number,
+  end: number,
+): number[] => {
+  const a = -start + 3 * control1 - 3 * control2 + end;
+  const b = 2 * (start - 2 * control1 + control2);
+  const c = control1 - start;
+
+  if (Math.abs(a) < 0.000001) {
+    if (Math.abs(b) < 0.000001) {
+      return [];
+    }
+
+    const t = -c / b;
+    return t > 0 && t < 1 ? [t] : [];
+  }
+
+  const discriminant = b ** 2 - 4 * a * c;
+
+  if (discriminant < 0) {
+    return [];
+  }
+
+  const root = Math.sqrt(discriminant);
+
+  return [(-b + root) / (2 * a), (-b - root) / (2 * a)].filter((t) => t > 0 && t < 1);
+};
+
+export const getArrowCurveBounds = (points: Point[]): Rect => {
+  const segments = getArrowCurveSegments(points);
+
+  if (segments.length === 0) {
+    const point = points[0] ?? { x: 0, y: 0 };
+    return { x: point.x, y: point.y, width: 0, height: 0 };
+  }
+
+  const boundsPoints = segments.flatMap((segment) => {
+    const xExtrema = getCubicBezierExtrema(
+      segment.start.x,
+      segment.control1.x,
+      segment.control2.x,
+      segment.end.x,
+    );
+    const yExtrema = getCubicBezierExtrema(
+      segment.start.y,
+      segment.control1.y,
+      segment.control2.y,
+      segment.end.y,
+    );
+
+    return [
+      segment.start,
+      segment.end,
+      ...xExtrema.map((t) => getPointOnCubicBezier(segment, t)),
+      ...yExtrema.map((t) => getPointOnCubicBezier(segment, t)),
+    ];
+  });
+  const minX = Math.min(...boundsPoints.map((point) => point.x));
+  const minY = Math.min(...boundsPoints.map((point) => point.y));
+  const maxX = Math.max(...boundsPoints.map((point) => point.x));
+  const maxY = Math.max(...boundsPoints.map((point) => point.y));
+
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+};
+
+export const getArrowHeadSegment = (points: Point[]): [Point, Point] | undefined => {
+  const finalSegment = getArrowCurveSegments(points).at(-1);
+
+  return finalSegment ? [finalSegment.control2, finalSegment.end] : undefined;
 };
 
 export const getArrowHead = (

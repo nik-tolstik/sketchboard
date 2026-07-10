@@ -11,6 +11,7 @@ import {
   TEXT_CONTENT_INSET_X,
   TEXT_CONTENT_INSET_Y,
   TEXT_LINE_HEIGHT,
+  getArrowCurveSegments,
   getArrowHead,
   getArrowHeadSegment,
   getDiamondPoints,
@@ -231,17 +232,25 @@ export class CanvasRenderer {
   }
 
   private drawArrow(element: ArrowElement): void {
-    const [firstPoint, ...points] = element.points;
+    const segments = getArrowCurveSegments(element.points);
+    const firstSegment = segments[0];
 
-    if (!firstPoint) {
+    if (!firstSegment) {
       return;
     }
 
     this.context.beginPath();
-    this.context.moveTo(firstPoint.x, firstPoint.y);
+    this.context.moveTo(firstSegment.start.x, firstSegment.start.y);
 
-    for (const point of points) {
-      this.context.lineTo(point.x, point.y);
+    for (const segment of segments) {
+      this.context.bezierCurveTo(
+        segment.control1.x,
+        segment.control1.y,
+        segment.control2.x,
+        segment.control2.y,
+        segment.end.x,
+        segment.end.y,
+      );
     }
 
     this.context.stroke();

@@ -1150,26 +1150,27 @@ test("bends arrows by dragging their middle point", async ({ page }) => {
   await expect.poll(() => readPersistedElements(page)).toEqual([]);
 
   const canvas = page.locator("[data-canvas]");
+  const layerPanel = page.locator("[data-object-settings-panel] [data-layer-panel]");
 
   await page.getByRole("button", { name: "Arrow" }).click();
-  await dragCanvas(page, { x: 300, y: 260 }, { x: 500, y: 260 });
+  await dragCanvas(page, { x: 260, y: 260 }, { x: 580, y: 260 });
   await expect
     .poll(() => readPersistedElements(page))
     .toMatchObject([
       {
         type: "arrow",
         points: [
-          { x: 300, y: 260 },
-          { x: 400, y: 260 },
-          { x: 500, y: 260 },
+          { x: 260, y: 260 },
+          { x: 420, y: 260 },
+          { x: 580, y: 260 },
         ],
       },
     ]);
   await expectActiveTool(page, "select");
 
   await page.getByRole("button", { name: "Select" }).click();
-  await canvas.click({ position: { x: 400, y: 260 } });
-  await dragCanvas(page, { x: 400, y: 260 }, { x: 400, y: 180 });
+  await canvas.click({ position: { x: 420, y: 260 } });
+  await dragCanvas(page, { x: 420, y: 260 }, { x: 420, y: 100 });
 
   await expect
     .poll(() => readPersistedElements(page))
@@ -1177,15 +1178,69 @@ test("bends arrows by dragging their middle point", async ({ page }) => {
       {
         type: "arrow",
         points: [
-          { x: 300, y: 260 },
-          { x: 400, y: 180 },
-          { x: 500, y: 260 },
+          { x: 260, y: 260 },
+          { x: 420, y: 100 },
+          { x: 580, y: 260 },
         ],
       },
     ]);
   await expect
-    .poll(() => countDarkCanvasPixels(page, { x: 388, y: 168, width: 24, height: 24 }))
+    .poll(() => countDarkCanvasPixels(page, { x: 408, y: 88, width: 24, height: 24 }))
     .toBeGreaterThan(8);
+  await expect
+    .poll(() => countDarkCanvasPixels(page, { x: 506, y: 166, width: 8, height: 8 }))
+    .toBeGreaterThan(3);
+  await expect
+    .poll(() => countDarkCanvasPixels(page, { x: 506, y: 186, width: 8, height: 8 }))
+    .toBeLessThanOrEqual(1);
+
+  await page.keyboard.press("Control+z");
+  await expect
+    .poll(() => readPersistedElements(page))
+    .toMatchObject([
+      {
+        type: "arrow",
+        points: [
+          { x: 260, y: 260 },
+          { x: 420, y: 260 },
+          { x: 580, y: 260 },
+        ],
+      },
+    ]);
+  await expect
+    .poll(() => countDarkCanvasPixels(page, { x: 496, y: 256, width: 8, height: 8 }))
+    .toBeGreaterThan(3);
+
+  await page.keyboard.press("Control+Shift+z");
+  await expect
+    .poll(() => readPersistedElements(page))
+    .toMatchObject([
+      {
+        type: "arrow",
+        points: [
+          { x: 260, y: 260 },
+          { x: 420, y: 100 },
+          { x: 580, y: 260 },
+        ],
+      },
+    ]);
+  await expect
+    .poll(() => countDarkCanvasPixels(page, { x: 506, y: 166, width: 8, height: 8 }))
+    .toBeGreaterThan(3);
+
+  await canvas.click({ position: { x: 700, y: 400 } });
+  await expect(layerPanel).toBeHidden();
+  await canvas.click({ position: { x: 510, y: 190 } });
+  await expect(layerPanel).toBeHidden();
+  await page.keyboard.press("Delete");
+  await expect.poll(() => readPersistedElements(page)).toHaveLength(1);
+
+  await canvas.click({ position: { x: 510, y: 170 } });
+  await expect(layerPanel).toBeVisible();
+  await page.keyboard.press("Delete");
+  await expect.poll(() => readPersistedElements(page)).toEqual([]);
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => readPersistedElements(page)).toHaveLength(1);
 });
 
 test("places multi-point arrows with clicks and finishes on the last point", async ({ page }) => {
