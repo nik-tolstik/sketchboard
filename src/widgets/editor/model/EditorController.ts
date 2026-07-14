@@ -1,5 +1,6 @@
 import {
   DEFAULT_TEXT_ALIGN,
+  DEFAULT_SHAPE_TEXT_ALIGN,
   DEFAULT_STYLE,
   MIN_ARROW_POINTS,
   createArrowElement,
@@ -9,12 +10,16 @@ import {
   getElementBounds,
   getResizeHandleAtPoint,
   getResizeHandlePoints,
+  getShapeTextBox,
+  getTextCapableElementAtPoint,
   getTextElementHeight,
   getTextElementWidth,
   isResizableElement,
+  isTextCapableElement,
   resizeElement,
   updateArrowPoint,
   updateTextElementText,
+  updateShapeElementText,
   clampViewportZoom,
   type ArrowElement,
   type BorderRadius,
@@ -33,6 +38,7 @@ import {
   cloneElementsAt,
   constrainToSquareDelta,
   distance,
+  getContextSelectionIds,
   getElementAtPoint,
   getElementsBounds,
   getElementsInLayerOrder,
@@ -62,6 +68,7 @@ type TogglePanning = (isPanning: boolean) => void;
 type SelectionChangeListener = () => void;
 type ToolChangeListener = (tool: Tool) => void;
 type TextEditorOptions = {
+  containerHeight?: number;
   initialText?: string;
   fontSize?: number;
   width?: number;
@@ -121,6 +128,9 @@ const MIDDLE_MOUSE_BUTTON = 1;
 const PRIMARY_MOUSE_BUTTON = 0;
 const WHEEL_ZOOM_SPEED = 0.002;
 
+const isShapeTool = (tool: Tool): tool is ShapeElement["type"] =>
+  tool === "rectangle" || tool === "diamond" || tool === "ellipse";
+
 export class EditorController {
   private activeTool: Tool = "select";
   private currentStyle: Partial<ElementStyle> = {
@@ -131,6 +141,7 @@ export class EditorController {
     opacity: DEFAULT_STYLE.opacity,
   };
   private currentTextAlign: TextAlign = DEFAULT_TEXT_ALIGN;
+  private currentShapeTextAlign: TextAlign = DEFAULT_SHAPE_TEXT_ALIGN;
   private draft: DrawingElement | undefined;
   private isPanning = false;
   private selectionDrag: SelectionDrag | undefined;
@@ -141,6 +152,7 @@ export class EditorController {
   private arrowDraftPoints: Point[] | undefined;
   private selectedElementIds = new Set<string>();
   private editingTextElementId: string | undefined;
+  private editingShapeTextElementId: string | undefined;
   private clipboard: DrawingElement[] = [];
   private lastCursorWorldPoint: Point | undefined;
   private panStart: Point | undefined;
@@ -169,7 +181,6 @@ export class EditorController {
     this.canvas.removeEventListener("pointercancel", this.handlePointerUp);
     this.canvas.removeEventListener("wheel", this.handleWheel);
     this.canvas.removeEventListener("dblclick", this.handleDoubleClick);
-    this.canvas.removeEventListener("contextmenu", this.handleContextMenu);
 
     if (this.pointerId !== undefined) {
       this.releasePointer(this.pointerId);
@@ -207,7 +218,7 @@ export class EditorController {
   getObjectSettings(): ObjectSettingsSnapshot {
     return getObjectSettingsSnapshot({
       currentStyle: this.currentStyle,
-      currentTextAlign: this.currentTextAlign,
+      currentTextAlign: this.getCurrentTextAlign(),
       selectedElements: this.getSelectedElements(),
     });
   }
@@ -237,8 +248,25 @@ export class EditorController {
   }
 
   setTextAlign(textAlign: TextAlign): void {
-    this.currentTextAlign = textAlign;
-    this.store.updateTextElementsAlign(this.selectedElementIds, textAlign);
+    const selectedTextCapableElements = this.getSelectedElements().filter(isTextCapableElement);
+
+    if (selectedTextCapableElements.length === 0) {
+      if (isShapeTool(this.activeTool)) {
+        this.currentShapeTextAlign = textAlign;
+      } else {
+        this.currentTextAlign = textAlign;
+      }
+    } else {
+      if (selectedTextCapableElements.some((element) => element.type === "text")) {
+        this.currentTextAlign = textAlign;
+      }
+
+      if (selectedTextCapableElements.some((element) => element.type !== "text")) {
+        this.currentShapeTextAlign = textAlign;
+      }
+    }
+
+    this.store.updateElementsTextAlign(this.selectedElementIds, textAlign);
     this.renderSelection();
   }
 
@@ -251,6 +279,14 @@ export class EditorController {
 
     this.clipboard = selectedElements.map((element) => structuredClone(element));
     return true;
+  }
+
+  cutSelection(): boolean {
+    if (!this.copySelection()) {
+      return false;
+    }
+
+    return this.deleteSelection();
   }
 
   pasteSelection(): boolean {
@@ -337,6 +373,25 @@ export class EditorController {
     return didUpdate;
   }
 
+  prepareContextMenuAt(clientX: number, clientY: number): void {
+    const rect = this.canvas.getBoundingClientRect();
+    const screenPoint = {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+    const snapshot = this.store.getSnapshot();
+    const worldPoint = screenToWorld(screenPoint, snapshot.viewport);
+
+    this.lastCursorWorldPoint = worldPoint;
+    this.selectedElementIds = getContextSelectionIds(
+      snapshot.elements,
+      this.selectedElementIds,
+      worldPoint,
+      8 / snapshot.viewport.zoom,
+    );
+    this.renderSelection();
+  }
+
   refreshSelection(scene: SceneSnapshot = this.store.getSnapshot()): void {
     const existingElementIds = new Set(scene.elements.map((element) => element.id));
     this.selectedElementIds = new Set(
@@ -371,14 +426,17 @@ export class EditorController {
     this.canvas.addEventListener("pointercancel", this.handlePointerUp);
     this.canvas.addEventListener("wheel", this.handleWheel, { passive: false });
     this.canvas.addEventListener("dblclick", this.handleDoubleClick);
-    this.canvas.addEventListener("contextmenu", this.handleContextMenu);
   }
 
-  private handleContextMenu = (event: MouseEvent): void => {
-    event.preventDefault();
-  };
-
   private handlePointerDown = (event: PointerEvent): void => {
+    if (
+      event.pointerType !== "touch" &&
+      event.button !== PRIMARY_MOUSE_BUTTON &&
+      event.button !== MIDDLE_MOUSE_BUTTON
+    ) {
+      return;
+    }
+
     this.canvas.setPointerCapture(event.pointerId);
 
     if (event.pointerType === "touch") {
@@ -726,7 +784,12 @@ export class EditorController {
     }
 
     const worldPoint = this.getWorldPoint(event);
-    const textElement = this.getTextElementAtPoint(worldPoint);
+    const snapshot = this.store.getSnapshot();
+    const textElement = getTextCapableElementAtPoint(
+      snapshot.elements,
+      worldPoint,
+      8 / snapshot.viewport.zoom,
+    );
 
     if (!textElement) {
       return;
@@ -744,16 +807,33 @@ export class EditorController {
     this.selectedElementIds = new Set([textElement.id]);
     this.renderSelection();
 
-    this.openTextEditor(this.getElementScreenPoint(textElement), {
-      initialText: textElement.text,
-      fontSize: textElement.fontSize,
-      width: textElement.width,
-      textColor: textElement.style.stroke,
-      textAlign: textElement.textAlign,
-      onCommit: (text) => this.commitTextElementEdit(textElement, text),
-      onCancel: () => this.finishTextElementEdit(textElement.id),
-    });
-    this.editingTextElementId = textElement.id;
+    if (textElement.type === "text") {
+      this.openTextEditor(this.getElementScreenPoint(textElement), {
+        initialText: textElement.text,
+        fontSize: textElement.fontSize,
+        width: textElement.width,
+        textColor: textElement.style.stroke,
+        textAlign: textElement.textAlign,
+        onCommit: (text) => this.commitTextElementEdit(textElement, text),
+        onCancel: () => this.finishTextEdit(textElement.id),
+      });
+      this.editingTextElementId = textElement.id;
+    } else {
+      const textBox = getShapeTextBox(textElement);
+
+      this.openTextEditor(worldToScreen({ x: textBox.x, y: textBox.y }, snapshot.viewport), {
+        containerHeight: textBox.height,
+        initialText: textElement.text,
+        fontSize: textElement.fontSize,
+        width: textBox.width,
+        textColor: textElement.style.stroke,
+        textAlign: textElement.textAlign,
+        onCommit: (text) => this.commitShapeElementEdit(textElement, text),
+        onCancel: () => this.finishTextEdit(textElement.id),
+      });
+      this.editingShapeTextElementId = textElement.id;
+    }
+
     this.renderSelection();
   };
 
@@ -764,8 +844,11 @@ export class EditorController {
       return this.applyCurrentStyle(createBrushElement(point));
     }
 
-    if (tool === "rectangle" || tool === "diamond" || tool === "ellipse") {
-      return this.applyCurrentStyle(createShapeElement(tool, point, point));
+    if (isShapeTool(tool)) {
+      return this.applyCurrentStyle({
+        ...createShapeElement(tool, point, point),
+        textAlign: this.currentShapeTextAlign,
+      });
     }
 
     throw new Error("Only drawing tools create drafts.");
@@ -1327,13 +1410,6 @@ export class EditorController {
     this.renderSelection();
   }
 
-  private getTextElementAtPoint(point: Point): TextElement | undefined {
-    const snapshot = this.store.getSnapshot();
-    const hitElement = getElementAtPoint(snapshot.elements, point, 8 / snapshot.viewport.zoom);
-
-    return hitElement?.type === "text" ? hitElement : undefined;
-  }
-
   private getElementScreenPoint(element: TextElement): Point {
     return worldToScreen({ x: element.x, y: element.y }, this.store.getSnapshot().viewport);
   }
@@ -1342,7 +1418,7 @@ export class EditorController {
     if (text.trim().length === 0) {
       this.store.removeElements(new Set([originalElement.id]));
       this.selectedElementIds = new Set<string>();
-      this.finishTextElementEdit(originalElement.id);
+      this.finishTextEdit(originalElement.id);
       return;
     }
 
@@ -1351,7 +1427,7 @@ export class EditorController {
       .elements.find((element) => element.id === originalElement.id);
 
     if (currentElement?.type !== "text") {
-      this.finishTextElementEdit(originalElement.id);
+      this.finishTextEdit(originalElement.id);
       return;
     }
 
@@ -1359,7 +1435,7 @@ export class EditorController {
     const height = this.measureTextHeight(text, width, currentElement.fontSize);
 
     if (currentElement.text === text && Math.abs(currentElement.height - height) < 0.5) {
-      this.finishTextElementEdit(originalElement.id);
+      this.finishTextEdit(originalElement.id);
       return;
     }
 
@@ -1370,7 +1446,34 @@ export class EditorController {
     };
     this.store.replaceElement(updatedElement);
     this.selectedElementIds = new Set([updatedElement.id]);
-    this.finishTextElementEdit(updatedElement.id);
+    this.finishTextEdit(updatedElement.id);
+  }
+
+  private commitShapeElementEdit(originalElement: ShapeElement, text: string): void {
+    const currentElement = this.store
+      .getSnapshot()
+      .elements.find((element) => element.id === originalElement.id);
+
+    if (
+      !currentElement ||
+      currentElement.type === "text" ||
+      !isTextCapableElement(currentElement)
+    ) {
+      this.finishTextEdit(originalElement.id);
+      return;
+    }
+
+    const nextText = text.trim().length > 0 ? text : "";
+
+    if (currentElement.text === nextText) {
+      this.finishTextEdit(originalElement.id);
+      return;
+    }
+
+    const updatedElement = updateShapeElementText(currentElement, nextText);
+    this.store.replaceElement(updatedElement);
+    this.selectedElementIds = new Set([updatedElement.id]);
+    this.finishTextEdit(updatedElement.id);
   }
 
   private measureTextWidth(text: string, fontSize: number): number {
@@ -1404,12 +1507,13 @@ export class EditorController {
     return width;
   };
 
-  private finishTextElementEdit(elementId: string): void {
-    if (this.editingTextElementId !== elementId) {
+  private finishTextEdit(elementId: string): void {
+    if (this.editingTextElementId !== elementId && this.editingShapeTextElementId !== elementId) {
       return;
     }
 
     this.editingTextElementId = undefined;
+    this.editingShapeTextElementId = undefined;
     this.renderSelection();
   }
 
@@ -1432,6 +1536,7 @@ export class EditorController {
     this.renderPreview({
       ...options,
       hiddenElementIds: this.getHiddenElementIds(options.hiddenElementIds),
+      hiddenElementTextIds: this.getHiddenElementTextIds(options.hiddenElementTextIds),
       selectedElementIds: this.selectedElementIds,
     });
   }
@@ -1442,6 +1547,16 @@ export class EditorController {
     }
 
     return new Set([...(hiddenElementIds ?? []), this.editingTextElementId]);
+  }
+
+  private getHiddenElementTextIds(
+    hiddenElementTextIds: Set<string> | undefined,
+  ): Set<string> | undefined {
+    if (!this.editingShapeTextElementId) {
+      return hiddenElementTextIds;
+    }
+
+    return new Set([...(hiddenElementTextIds ?? []), this.editingShapeTextElementId]);
   }
 
   private getSelectionBox(selectionDrag: SelectionDrag): Rect {
@@ -1552,6 +1667,10 @@ export class EditorController {
         borderRadius,
       },
     };
+  }
+
+  private getCurrentTextAlign(): TextAlign {
+    return isShapeTool(this.activeTool) ? this.currentShapeTextAlign : this.currentTextAlign;
   }
 
   private isDrawableDraft(draft: DrawingElement): boolean {

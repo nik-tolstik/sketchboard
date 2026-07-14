@@ -4,6 +4,7 @@ import { TOOLS } from "../config/editorConfig";
 
 export type EditorShortcut =
   | { type: "copy-selection" }
+  | { type: "cut-selection" }
   | { type: "delete-selection" }
   | { type: "paste-selection" }
   | { type: "redo" }
@@ -39,6 +40,10 @@ export const getEditorShortcut = (event: KeyboardShortcutEvent): EditorShortcut 
 
     if (key === "c" || event.code === "KeyC") {
       return { type: "copy-selection" };
+    }
+
+    if (key === "x" || event.code === "KeyX") {
+      return { type: "cut-selection" };
     }
 
     if (key === "v" || event.code === "KeyV") {

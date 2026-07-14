@@ -154,16 +154,23 @@ describe("SceneStore", () => {
     expect(store.getSnapshot().elements.map((element) => element.layer)).toEqual([0, 1]);
   });
 
-  it("updates text alignment as an undoable change", async () => {
+  it("updates text alignment for standalone text and shapes as an undoable change", async () => {
     const { store } = await createStore();
-    const element = createTextElement({ x: 10, y: 10 }, "first");
+    const text = createTextElement({ x: 10, y: 10 }, "first");
+    const shape = createShapeElement("rectangle", { x: 0, y: 0 }, { x: 80, y: 40 });
 
-    store.addElement(element);
+    store.addElements([text, shape]);
 
-    expect(store.updateTextElementsAlign(new Set([element.id]), "center")).toBe(true);
-    expect(store.getSnapshot().elements[0]).toMatchObject({ textAlign: "center" });
+    expect(store.updateElementsTextAlign(new Set([text.id, shape.id]), "right")).toBe(true);
+    expect(store.getSnapshot().elements).toMatchObject([
+      { textAlign: "right" },
+      { textAlign: "right" },
+    ]);
     expect(store.undo()).toBe(true);
-    expect(store.getSnapshot().elements[0]).toMatchObject({ textAlign: "left" });
+    expect(store.getSnapshot().elements).toMatchObject([
+      { textAlign: "left" },
+      { textAlign: "center" },
+    ]);
   });
 
   it("replaces moved elements as one undoable change", async () => {

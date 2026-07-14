@@ -27,6 +27,7 @@ export const TOOLS: ToolDefinition[] = [
 ];
 
 const OBJECT_TOOLS = new Set<Tool>(["brush", "text", "rectangle", "diamond", "ellipse", "arrow"]);
+const TEXT_CAPABLE_TOOLS = new Set<Tool>(["text", "rectangle", "diamond", "ellipse"]);
 
 export const LAYER_CONTROLS: LayerControlDefinition[] = [
   { action: "backward", label: "Назад", icon: "layerBackward" },
@@ -39,3 +40,4 @@ export const getToolTitle = (tool: ToolDefinition): string =>
   `${tool.label} (${[tool.numericShortcut, tool.shortcut].filter(Boolean).join(", ")})`;
 
 export const isObjectTool = (tool: Tool): boolean => OBJECT_TOOLS.has(tool);
+export const isTextCapableTool = (tool: Tool): boolean => TEXT_CAPABLE_TOOLS.has(tool);

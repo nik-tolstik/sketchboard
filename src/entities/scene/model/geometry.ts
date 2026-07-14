@@ -1,4 +1,4 @@
-import type { Point, Viewport } from "./elements";
+import { TEXT_CONTENT_INSET_Y, type Point, type ShapeElement, type Viewport } from "./elements";
 
 export const MIN_VIEWPORT_ZOOM = 0.25;
 export const MAX_VIEWPORT_ZOOM = 4;
@@ -87,6 +87,25 @@ export const normalizeRect = (rect: Rect): Rect => {
     height: Math.abs(rect.height),
   };
 };
+
+export const getShapeTextBox = (element: ShapeElement): Rect => {
+  const rect = normalizeRect(element);
+  const widthScale =
+    element.type === "diamond" ? 0.5 : element.type === "ellipse" ? Math.SQRT1_2 : 1;
+  const heightScale = widthScale;
+  const width = Math.max(1, rect.width * widthScale);
+  const height = Math.max(1, rect.height * heightScale);
+
+  return {
+    x: rect.x + (rect.width - width) / 2,
+    y: rect.y + (rect.height - height) / 2,
+    width,
+    height,
+  };
+};
+
+export const getVerticallyCenteredTextTop = (textBox: Rect, textHeight: number): number =>
+  textBox.y + Math.max(TEXT_CONTENT_INSET_Y, (textBox.height - Math.max(0, textHeight)) / 2);
 
 export const distance = (a: Point, b: Point): number => Math.hypot(a.x - b.x, a.y - b.y);
 

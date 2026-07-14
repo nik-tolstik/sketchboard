@@ -2,6 +2,7 @@ import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 
 import { useEditorRuntime } from "../../model/useEditorRuntime";
+import { isTextCapableTool } from "../../config/editorConfig";
 import { EditorIcon } from "../EditorIcon";
 import { segmentButtonClassName } from "./objectSettingsClasses";
 import { TEXT_ALIGN_CONTROLS } from "./objectSettingsPresets";
@@ -15,7 +16,7 @@ export function TextAlignmentSection() {
   const setTextAlign = useEditorRuntime((runtime) => runtime.setTextAlign);
   const textAlign = useEditorRuntime((runtime) => runtime.textAlign);
 
-  const showTextAlignment = activeTool === "text" || hasTextSelection;
+  const showTextAlignment = isTextCapableTool(activeTool) || hasTextSelection;
 
   return (
     <ObjectSettingsSection

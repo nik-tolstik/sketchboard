@@ -92,6 +92,31 @@ describe("scene", () => {
     expect(text?.style.borderRadius).toBe(0);
     expect(text?.type === "text" ? text.textAlign : undefined).toBe("left");
     expect(rectangle?.style.opacity).toBe(0);
+    expect(rectangle).toMatchObject({ text: "", textAlign: "center", fontSize: 24 });
+  });
+
+  it("normalizes persisted shape text fields without changing the scene version", () => {
+    const scene = normalizeScene({
+      version: 2,
+      elements: [
+        {
+          id: "shape",
+          type: "ellipse",
+          text: 42,
+          textAlign: "diagonal",
+          fontSize: -2,
+        },
+      ] as never,
+      viewport: DEFAULT_VIEWPORT,
+    });
+
+    expect(scene.version).toBe(2);
+    expect(scene.elements[0]).toMatchObject({
+      type: "ellipse",
+      text: "",
+      textAlign: "center",
+      fontSize: 24,
+    });
   });
 
   it("normalizes persisted border radius presets", () => {

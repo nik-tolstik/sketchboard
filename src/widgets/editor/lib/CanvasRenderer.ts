@@ -4,6 +4,7 @@ import type {
   DrawingElement,
   SceneSnapshot,
   ShapeElement,
+  TextAlign,
   TextElement,
   Viewport,
 } from "@/entities/scene";
@@ -18,6 +19,8 @@ import {
   getElementsInLayerOrder,
   getResizeHandlePoints,
   getRoundedShapeContour,
+  getShapeTextBox,
+  getVerticallyCenteredTextTop,
   isResizableElement,
   normalizeRect,
   type Rect,
@@ -29,6 +32,7 @@ export type CanvasRenderOptions = {
   preview?: DrawingElement;
   previews?: DrawingElement[];
   hiddenElementIds?: Set<string>;
+  hiddenElementTextIds?: Set<string>;
   selectedElementIds?: Set<string>;
   selectionBox?: Rect;
 };
@@ -76,7 +80,7 @@ export class CanvasRenderer {
         continue;
       }
 
-      this.drawElement(element);
+      this.drawElement(element, options.hiddenElementTextIds?.has(element.id) !== true);
       renderedElements.push(element);
     }
 
@@ -114,7 +118,7 @@ export class CanvasRenderer {
     this.context.scale(viewport.zoom, viewport.zoom);
   }
 
-  private drawElement(element: DrawingElement): void {
+  private drawElement(element: DrawingElement, showShapeText = true): void {
     this.context.save();
     this.context.strokeStyle = element.style.stroke;
     this.context.fillStyle = element.style.fill;
@@ -130,7 +134,7 @@ export class CanvasRenderer {
     } else if (element.type === "arrow") {
       this.drawArrow(element);
     } else {
-      this.drawShape(element);
+      this.drawShape(element, showShapeText);
     }
 
     this.context.restore();
@@ -154,41 +158,60 @@ export class CanvasRenderer {
   }
 
   private drawText(element: TextElement): void {
-    this.context.font = getCanvasTextFont(element.fontSize);
-    this.context.textBaseline = "top";
-    this.context.textAlign = element.textAlign;
     this.context.fillStyle = element.style.stroke;
-    const textX = this.getTextLineX(element);
-
-    const { lines } = measureTextElementLayout(
-      this.context,
+    this.drawTextBlock(
       element.text,
-      element.width,
+      element.textAlign,
       element.fontSize,
+      {
+        x: element.x,
+        y: element.y,
+        width: element.width,
+        height: element.height,
+      },
+      false,
     );
+  }
+
+  private drawTextBlock(
+    text: string,
+    textAlign: TextAlign,
+    fontSize: number,
+    textBox: Rect,
+    verticallyCentered: boolean,
+  ): void {
+    this.context.font = getCanvasTextFont(fontSize);
+    this.context.textBaseline = "top";
+    this.context.textAlign = textAlign;
+    const textX = this.getTextLineX(textBox, textAlign);
+
+    const { height, lines } = measureTextElementLayout(this.context, text, textBox.width, fontSize);
+    const textTop = verticallyCentered
+      ? getVerticallyCenteredTextTop(textBox, height) + TEXT_CONTENT_INSET_Y
+      : textBox.y + TEXT_CONTENT_INSET_Y;
 
     for (let index = 0; index < lines.length; index += 1) {
       this.context.fillText(
         lines[index] ?? "",
         textX,
-        element.y + TEXT_CONTENT_INSET_Y + index * element.fontSize * TEXT_LINE_HEIGHT,
+        textTop + index * fontSize * TEXT_LINE_HEIGHT,
       );
     }
   }
 
-  private getTextLineX(element: TextElement): number {
-    if (element.textAlign === "center") {
-      return element.x + element.width / 2;
+  private getTextLineX(textBox: Rect, textAlign: TextAlign): number {
+    if (textAlign === "center") {
+      return textBox.x + textBox.width / 2;
     }
 
-    if (element.textAlign === "right") {
-      return element.x + element.width - TEXT_CONTENT_INSET_X;
+    if (textAlign === "right") {
+      return textBox.x + textBox.width - TEXT_CONTENT_INSET_X;
     }
 
-    return element.x + TEXT_CONTENT_INSET_X;
+    return textBox.x + TEXT_CONTENT_INSET_X;
   }
 
-  private drawShape(element: ShapeElement): void {
+  private drawShape(element: ShapeElement, showText: boolean): void {
     const rect = normalizeRect({
       x: element.x,
       y: element.y,
@@ -213,30 +236,40 @@ export class CanvasRenderer {
       );
       this.context.fill();
       this.context.stroke();
-      return;
-    }
+    } else {
+      const contour = getRoundedShapeContour(element.type, rect, element.style.borderRadius ?? 0);
 
-    const contour = getRoundedShapeContour(element.type, rect, element.style.borderRadius ?? 0);
+      this.context.beginPath();
+      this.context.moveTo(contour.start.x, contour.start.y);
 
-    this.context.beginPath();
-    this.context.moveTo(contour.start.x, contour.start.y);
-
-    for (const segment of contour.segments) {
-      if (segment.type === "line") {
-        this.context.lineTo(segment.end.x, segment.end.y);
-      } else {
-        this.context.quadraticCurveTo(
-          segment.control.x,
-          segment.control.y,
-          segment.end.x,
-          segment.end.y,
-        );
+      for (const segment of contour.segments) {
+        if (segment.type === "line") {
+          this.context.lineTo(segment.end.x, segment.end.y);
+        } else {
+          this.context.quadraticCurveTo(
+            segment.control.x,
+            segment.control.y,
+            segment.end.x,
+            segment.end.y,
+          );
+        }
       }
+
+      this.context.closePath();
+      this.context.fill();
+      this.context.stroke();
     }
 
-    this.context.closePath();
-    this.context.fill();
-    this.context.stroke();
+    if (showText && element.text.length > 0) {
+      this.context.fillStyle = element.style.stroke;
+      this.drawTextBlock(
+        element.text,
+        element.textAlign,
+        element.fontSize,
+        getShapeTextBox(element),
+        true,
+      );
+    }
   }
 
   private drawArrow(element: ArrowElement): void {

@@ -2,6 +2,7 @@ import { cn } from "@/shared/lib/utils";
 import { Slider } from "@/shared/ui/slider";
 
 import { useEditorRuntime } from "../../model/useEditorRuntime";
+import { isTextCapableTool } from "../../config/editorConfig";
 import { clampOpacityPercent, getSliderPercentValue } from "./objectSettingsUtils";
 import { ObjectSettingsSection } from "./ObjectSettingsSection";
 
@@ -14,7 +15,7 @@ export function OpacitySection() {
   const setOpacity = useEditorRuntime((runtime) => runtime.setOpacity);
 
   const opacityPercent = clampOpacityPercent(opacity);
-  const showTextAlignment = activeTool === "text" || hasTextSelection;
+  const showTextAlignment = isTextCapableTool(activeTool) || hasTextSelection;
 
   const commitOpacity = (value: number | readonly number[]): void => {
     const nextOpacityPercent = getSliderPercentValue(value);

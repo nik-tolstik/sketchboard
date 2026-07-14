@@ -1,5 +1,6 @@
 import {
   createElementId,
+  isTextCapableElement,
   type ArrowElement,
   type BrushElement,
   type DrawingElement,
@@ -7,6 +8,7 @@ import {
   type Point,
   type ShapeElement,
   type TextElement,
+  type TextCapableElement,
 } from "./elements";
 import {
   distance,
@@ -114,6 +116,52 @@ export const getElementAtPoint = (
     if (element && isElementHit(element, point, tolerance)) {
       return element;
     }
+  }
+
+  return undefined;
+};
+
+export const getContextSelectionIds = (
+  elements: DrawingElement[],
+  selectedElementIds: Set<string>,
+  point: Point,
+  tolerance = 6,
+): Set<string> => {
+  const hitElement = getElementAtPoint(elements, point, tolerance);
+
+  if (!hitElement) {
+    return new Set<string>();
+  }
+
+  return selectedElementIds.has(hitElement.id)
+    ? new Set(selectedElementIds)
+    : new Set([hitElement.id]);
+};
+
+export const getTextCapableElementAtPoint = (
+  elements: DrawingElement[],
+  point: Point,
+  tolerance = 6,
+): TextCapableElement | undefined => {
+  const layeredElements = getElementsInLayerOrder(elements);
+
+  for (let index = layeredElements.length - 1; index >= 0; index -= 1) {
+    const element = layeredElements[index];
+
+    if (!element) {
+      continue;
+    }
+
+    const isHit =
+      element.type === "rectangle"
+        ? isRoundedShapeHit("rectangle", element, point, tolerance, true)
+        : isElementHit(element, point, tolerance);
+
+    if (!isHit) {
+      continue;
+    }
+
+    return isTextCapableElement(element) ? element : undefined;
   }
 
   return undefined;

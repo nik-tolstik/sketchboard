@@ -7,6 +7,7 @@ import {
   IndexedDbSceneRepository,
   SceneStore,
   getTextElementWidth,
+  getVerticallyCenteredTextTop,
   type SaveState,
   type BorderRadius,
   type TextAlign,
@@ -32,6 +33,7 @@ type EditorRuntimeProviderProps = {
 };
 
 type TextEditorOptions = {
+  containerHeight?: number;
   initialText?: string;
   fontSize?: number;
   width?: number;
@@ -71,8 +73,10 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
   const [lineWidth, setLineWidthState] = useState(DEFAULT_LINE_WIDTH);
   const [opacity, setOpacityState] = useState(DEFAULT_OPACITY);
   const [textAlign, setTextAlignState] = useState<TextAlign>(DEFAULT_TEXT_ALIGN);
+  const [canPaste, setCanPaste] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
   const [hasBorderRadiusSelection, setHasBorderRadiusSelection] = useState(false);
+  const [hasSceneElements, setHasSceneElements] = useState(false);
   const [hasTextSelection, setHasTextSelection] = useState(false);
   const [selectionCount, setSelectionCount] = useState(0);
   const [mixedObjectSettings, setMixedObjectSettings] = useState(initialMixedObjectSettings);
@@ -157,6 +161,15 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
         textEditor.style.height = `${metrics.height}px`;
         textEditor.style.fontSize = `${metrics.fontSize}px`;
         textEditor.style.transform = `scale(${metrics.scale})`;
+        textEditor.style.top = `${
+          screenPoint.y +
+          (options.containerHeight === undefined
+            ? 0
+            : getVerticallyCenteredTextTop(
+                { x: 0, y: 0, width: metrics.width, height: options.containerHeight },
+                metrics.height,
+              ) * viewportZoom)
+        }px`;
       };
 
       const close = (): void => {
@@ -187,7 +200,6 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
       textEditor.value = options.initialText ?? "";
       textEditor.dataset.open = "true";
       textEditor.style.left = `${screenPoint.x}px`;
-      textEditor.style.top = `${screenPoint.y}px`;
       textEditor.style.color = options.textColor ?? "var(--text)";
       textEditor.style.textAlign = options.textAlign ?? DEFAULT_TEXT_ALIGN;
       textEditor.style.whiteSpace = shouldWrap ? "pre-wrap" : "pre";
@@ -226,6 +238,7 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
 
     const unsubscribeScene = store.subscribe((scene) => {
       latestScene = scene;
+      setHasSceneElements(scene.elements.length > 0);
       setZoom(scene.viewport.zoom);
 
       if (controller) {
@@ -259,7 +272,14 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
 
       switch (shortcut.type) {
         case "copy-selection":
-          currentController.copySelection();
+          if (currentController.copySelection()) {
+            setCanPaste(true);
+          }
+          return;
+        case "cut-selection":
+          if (currentController.cutSelection()) {
+            setCanPaste(true);
+          }
           return;
         case "delete-selection":
           currentController.deleteSelection();
@@ -329,9 +349,11 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
       controller?.destroy();
       controllerRef.current = null;
       storeRef.current = null;
+      setCanPaste(false);
       setIsPanning(false);
       setHasSelection(false);
       setHasBorderRadiusSelection(false);
+      setHasSceneElements(false);
       setHasTextSelection(false);
       setSelectionCount(0);
       setMixedObjectSettings(initialMixedObjectSettings);
@@ -384,11 +406,27 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
   }, []);
 
   const copySelection = useCallback((): void => {
-    controllerRef.current?.copySelection();
+    if (controllerRef.current?.copySelection()) {
+      setCanPaste(true);
+    }
+  }, []);
+
+  const cutSelection = useCallback((): void => {
+    if (controllerRef.current?.cutSelection()) {
+      setCanPaste(true);
+    }
   }, []);
 
   const deleteSelection = useCallback((): void => {
     controllerRef.current?.deleteSelection();
+  }, []);
+
+  const pasteSelection = useCallback((): void => {
+    controllerRef.current?.pasteSelection();
+  }, []);
+
+  const prepareContextMenuAt = useCallback((clientX: number, clientY: number): void => {
+    controllerRef.current?.prepareContextMenuAt(clientX, clientY);
   }, []);
 
   const zoomIn = useCallback((): void => {
@@ -411,19 +449,24 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
     () => ({
       activeTool,
       borderRadius,
+      canPaste,
       canvasRef,
       clearScene,
       copySelection,
+      cutSelection,
       deleteSelection,
       exportPng,
       fillColor,
       hasBorderRadiusSelection,
+      hasSceneElements,
       hasSelection,
       hasTextSelection,
       isPanning,
       lineWidth,
       mixedObjectSettings,
       opacity,
+      pasteSelection,
+      prepareContextMenuAt,
       saveState,
       setFillColor,
       setBorderRadius,
@@ -445,18 +488,23 @@ export function EditorRuntimeProvider({ children }: EditorRuntimeProviderProps) 
     [
       activeTool,
       borderRadius,
+      canPaste,
       clearScene,
       copySelection,
+      cutSelection,
       deleteSelection,
       exportPng,
       fillColor,
       hasBorderRadiusSelection,
+      hasSceneElements,
       hasSelection,
       hasTextSelection,
       isPanning,
       lineWidth,
       mixedObjectSettings,
       opacity,
+      pasteSelection,
+      prepareContextMenuAt,
       resetZoom,
       saveState,
       selectionCount,

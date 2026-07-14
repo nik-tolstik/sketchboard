@@ -1,9 +1,10 @@
 import {
   DEFAULT_STYLE,
+  isTextCapableElement,
   type DrawingElement,
   type ElementStyle,
   type TextAlign,
-  type TextElement,
+  type TextCapableElement,
 } from "@/entities/scene";
 
 export type ObjectSettingsSnapshot = {
@@ -54,7 +55,7 @@ const getCommonStyleValue = <Key extends keyof ObjectStyle>(
   return elements.every((element) => element.style[key] === firstValue) ? firstValue : undefined;
 };
 
-const getCommonTextAlign = (elements: TextElement[]): TextAlign | undefined => {
+const getCommonTextAlign = (elements: TextCapableElement[]): TextAlign | undefined => {
   const firstElement = elements[0];
 
   if (!firstElement) {
@@ -93,9 +94,7 @@ export const getObjectSettingsSnapshot = ({
     };
   }
 
-  const textElements = selectedElements.filter(
-    (element): element is TextElement => element.type === "text",
-  );
+  const textElements = selectedElements.filter(isTextCapableElement);
   const borderRadiusElements = selectedElements.filter(isBorderRadiusElement);
   const firstElement = selectedElements[0];
   const firstBorderRadiusElement = borderRadiusElements[0];

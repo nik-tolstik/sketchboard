@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_SHAPE_TEXT_ALIGN,
+  DEFAULT_TEXT_FONT_SIZE,
   createArrowElement,
   createShapeElement,
   createTextElement,
@@ -8,6 +10,7 @@ import {
   getWrappedTextLines,
   TEXT_LINE_HEIGHT,
   updateTextElementText,
+  updateShapeElementText,
 } from "./elements";
 
 describe("elements", () => {
@@ -78,5 +81,25 @@ describe("elements", () => {
 
     expect(rectangle.style.borderRadius).toBe(0);
     expect(diamond.style.borderRadius).toBe(0);
+    expect(rectangle).toMatchObject({
+      text: "",
+      textAlign: DEFAULT_SHAPE_TEXT_ALIGN,
+      fontSize: DEFAULT_TEXT_FONT_SIZE,
+    });
+  });
+
+  it("updates shape text while preserving geometry and identity", () => {
+    const shape = createShapeElement("ellipse", { x: 10, y: 20 }, { x: 110, y: 80 });
+    const updated = updateShapeElementText(shape, "Centered label");
+
+    expect(updated).toMatchObject({
+      id: shape.id,
+      text: "Centered label",
+      x: 10,
+      y: 20,
+      width: 100,
+      height: 60,
+    });
+    expect(updated.updatedAt).toBeGreaterThanOrEqual(shape.updatedAt);
   });
 });

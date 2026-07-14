@@ -55,6 +55,9 @@ export type ShapeElement = BaseElement & {
   y: number;
   width: number;
   height: number;
+  text: string;
+  textAlign: TextAlign;
+  fontSize: number;
 };
 
 export type ArrowElement = BaseElement & {
@@ -63,6 +66,7 @@ export type ArrowElement = BaseElement & {
 };
 
 export type DrawingElement = BrushElement | TextElement | ShapeElement | ArrowElement;
+export type TextCapableElement = TextElement | ShapeElement;
 
 export type SceneSnapshot = {
   version: 2;
@@ -89,6 +93,7 @@ export const DEFAULT_VIEWPORT: Viewport = {
 export const DEFAULT_LAYER = 0;
 export const MIN_ARROW_POINTS = 3;
 export const DEFAULT_TEXT_ALIGN: TextAlign = "left";
+export const DEFAULT_SHAPE_TEXT_ALIGN: TextAlign = "center";
 export const DEFAULT_TEXT_FONT_SIZE = 24;
 export const TEXT_CONTENT_INSET_X = 3;
 export const TEXT_CONTENT_INSET_Y = 5;
@@ -271,6 +276,18 @@ export const updateTextElementText = (element: TextElement, text: string): TextE
   updatedAt: now(),
 });
 
+export const updateShapeElementText = (element: ShapeElement, text: string): ShapeElement => ({
+  ...element,
+  text,
+  updatedAt: now(),
+});
+
+export const isTextCapableElement = (element: DrawingElement): element is TextCapableElement =>
+  element.type === "text" ||
+  element.type === "rectangle" ||
+  element.type === "diamond" ||
+  element.type === "ellipse";
+
 export const updateArrowPoint = (
   element: ArrowElement,
   pointIndex: number,
@@ -299,6 +316,9 @@ export const createShapeElement = (
     y: origin.y,
     width: target.x - origin.x,
     height: target.y - origin.y,
+    text: "",
+    textAlign: DEFAULT_SHAPE_TEXT_ALIGN,
+    fontSize: DEFAULT_TEXT_FONT_SIZE,
     createdAt: timestamp,
     updatedAt: timestamp,
     style: { ...DEFAULT_STYLE, lineWidth: 2 },

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createShapeElement } from "./elements";
 import {
   MAX_VIEWPORT_ZOOM,
   MIN_VIEWPORT_ZOOM,
@@ -14,6 +15,8 @@ import {
   getPointOnCubicBezier,
   getRoundedContourPoints,
   getRoundedShapeContour,
+  getShapeTextBox,
+  getVerticallyCenteredTextTop,
   normalizeRect,
   screenToWorld,
   shouldAppendPoint,
@@ -53,6 +56,28 @@ describe("geometry", () => {
       width: 10,
       height: 15,
     });
+  });
+
+  it("builds centered text boxes for shapes with normalized dimensions", () => {
+    const rectangle = createShapeElement("rectangle", { x: 120, y: 80 }, { x: 20, y: 20 });
+    const diamond = createShapeElement("diamond", { x: 20, y: 20 }, { x: 120, y: 80 });
+    const ellipse = createShapeElement("ellipse", { x: 20, y: 20 }, { x: 120, y: 80 });
+
+    expect(getShapeTextBox(rectangle)).toEqual({ x: 20, y: 20, width: 100, height: 60 });
+    expect(getShapeTextBox(diamond)).toEqual({ x: 45, y: 35, width: 50, height: 30 });
+    expect(getShapeTextBox(ellipse)).toMatchObject({
+      x: 20 + (100 - 100 * Math.SQRT1_2) / 2,
+      y: 20 + (60 - 60 * Math.SQRT1_2) / 2,
+      width: 100 * Math.SQRT1_2,
+      height: 60 * Math.SQRT1_2,
+    });
+  });
+
+  it("centers fitting text vertically and top-aligns overflowing text", () => {
+    const textBox = { x: 20, y: 30, width: 100, height: 60 };
+
+    expect(getVerticallyCenteredTextTop(textBox, 20)).toBe(50);
+    expect(getVerticallyCenteredTextTop(textBox, 80)).toBe(35);
   });
 
   it("builds diamond points from a normalized rectangle", () => {

@@ -24,6 +24,9 @@ describe("getEditorShortcut", () => {
     expect(getEditorShortcut(createEvent({ ctrlKey: true, key: "c" }))).toEqual({
       type: "copy-selection",
     });
+    expect(getEditorShortcut(createEvent({ code: "KeyX", metaKey: true }))).toEqual({
+      type: "cut-selection",
+    });
     expect(getEditorShortcut(createEvent({ ctrlKey: true, key: "v" }))).toEqual({
       type: "paste-selection",
     });

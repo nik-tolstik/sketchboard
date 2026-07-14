@@ -7,9 +7,12 @@ export type IconName =
   | "alignRight"
   | "clear"
   | "copy"
+  | "cut"
   | "delete"
   | "export"
   | "layerBackward"
   | "layerForward"
   | "layerToBack"
-  | "layerToFront";
+  | "layerToFront"
+  | "layers"
+  | "paste";

@@ -1,4 +1,11 @@
-import type { DrawingElement, ElementStyle, SceneSnapshot, TextAlign, Viewport } from "./elements";
+import {
+  isTextCapableElement,
+  type DrawingElement,
+  type ElementStyle,
+  type SceneSnapshot,
+  type TextAlign,
+  type Viewport,
+} from "./elements";
 import { createEmptyScene } from "./scene";
 import type { SceneRepository } from "./sceneRepository";
 import { applyElementStyle, getElementsInLayerOrder } from "./selection";
@@ -214,7 +221,7 @@ export class SceneStore {
     this.commit();
   }
 
-  updateTextElementsAlign(elementIds: Set<string>, textAlign: TextAlign): boolean {
+  updateElementsTextAlign(elementIds: Set<string>, textAlign: TextAlign): boolean {
     if (elementIds.size === 0) {
       return false;
     }
@@ -223,7 +230,7 @@ export class SceneStore {
     let didUpdate = false;
     const elements = this.scene.elements.map((element) => {
       if (
-        element.type !== "text" ||
+        !isTextCapableElement(element) ||
         !elementIds.has(element.id) ||
         element.textAlign === textAlign
       ) {

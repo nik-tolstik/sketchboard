@@ -7,10 +7,12 @@ import {
 } from "./elements";
 import {
   cloneElementsAt,
+  getContextSelectionIds,
   getElementAtPoint,
   getElementBounds,
   getElementsInLayerOrder,
   getElementsIntersectingRect,
+  getTextCapableElementAtPoint,
 } from "./selection";
 
 describe("selection", () => {
@@ -32,11 +34,38 @@ describe("selection", () => {
     ]);
   });
 
+  it("targets context actions without collapsing an existing multi-selection", () => {
+    const first = createTextElement({ x: 10, y: 10 }, "first");
+    const second = createTextElement({ x: 100, y: 10 }, "second");
+    const selectedIds = new Set([first.id, second.id]);
+
+    expect(getContextSelectionIds([first, second], selectedIds, { x: 20, y: 20 })).toEqual(
+      selectedIds,
+    );
+    expect(getContextSelectionIds([first, second], selectedIds, { x: 110, y: 20 })).toEqual(
+      selectedIds,
+    );
+  });
+
+  it("selects the top context target and clears selection on empty canvas", () => {
+    const lower = { ...createTextElement({ x: 10, y: 10 }, "lower"), layer: 1 };
+    const higher = { ...createTextElement({ x: 10, y: 10 }, "higher"), layer: 2 };
+    const currentSelection = new Set([lower.id]);
+
+    expect(getContextSelectionIds([lower, higher], currentSelection, { x: 20, y: 20 })).toEqual(
+      new Set([higher.id]),
+    );
+    expect(getContextSelectionIds([lower, higher], currentSelection, { x: 500, y: 500 })).toEqual(
+      new Set(),
+    );
+  });
+
   it("selects an unfilled rectangle only by its border", () => {
     const rectangle = createShapeElement("rectangle", { x: 0, y: 0 }, { x: 80, y: 60 });
 
     expect(getElementAtPoint([rectangle], { x: 40, y: 30 })).toBeUndefined();
     expect(getElementAtPoint([rectangle], { x: 2, y: 30 })?.id).toBe(rectangle.id);
+    expect(getTextCapableElementAtPoint([rectangle], { x: 40, y: 30 })?.id).toBe(rectangle.id);
   });
 
   it("selects a filled rectangle by its full area", () => {

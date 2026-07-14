@@ -53,7 +53,7 @@ describe("getObjectSettingsSnapshot", () => {
     });
   });
 
-  it("keeps text settings inactive for shape-only selections", () => {
+  it("exposes text settings for shape-only selections", () => {
     const shape = createShapeElement("rectangle", { x: 0, y: 0 }, { x: 40, y: 30 });
 
     expect(
@@ -64,8 +64,8 @@ describe("getObjectSettingsSnapshot", () => {
       }),
     ).toMatchObject({
       hasBorderRadiusSelection: true,
-      hasTextSelection: false,
-      textAlign: "right",
+      hasTextSelection: true,
+      textAlign: "center",
       mixed: { textAlign: false },
     });
   });

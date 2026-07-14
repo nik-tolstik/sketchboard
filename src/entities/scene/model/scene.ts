@@ -1,5 +1,6 @@
 import {
   BORDER_RADIUS_VALUES,
+  DEFAULT_SHAPE_TEXT_ALIGN,
   DEFAULT_STYLE,
   DEFAULT_TEXT_ALIGN,
   DEFAULT_TEXT_FONT_SIZE,
@@ -33,8 +34,8 @@ const positiveOrDefault = (value: unknown, fallback: number): number => {
 const stringOrDefault = (value: unknown, fallback: string): string =>
   typeof value === "string" ? value : fallback;
 
-const textAlignOrDefault = (value: unknown): TextAlign =>
-  value === "center" || value === "right" ? value : DEFAULT_TEXT_ALIGN;
+const textAlignOrDefault = (value: unknown, fallback = DEFAULT_TEXT_ALIGN): TextAlign =>
+  value === "left" || value === "center" || value === "right" ? value : fallback;
 
 const borderRadiusOrDefault = (value: unknown): BorderRadius =>
   BORDER_RADIUS_VALUES.includes(value as BorderRadius)
@@ -135,6 +136,19 @@ const normalizeElement = (
       height,
       style: normalizeStyle(textElement.style),
       layer: finiteOrDefault(textElement.layer, layerFallback),
+    } as DrawingElement;
+  }
+
+  if (element.type === "rectangle" || element.type === "diamond" || element.type === "ellipse") {
+    const shapeElement = element as Record<string, unknown>;
+
+    return {
+      ...shapeElement,
+      text: stringOrDefault(shapeElement.text, ""),
+      textAlign: textAlignOrDefault(shapeElement.textAlign, DEFAULT_SHAPE_TEXT_ALIGN),
+      fontSize: positiveOrDefault(shapeElement.fontSize, DEFAULT_TEXT_FONT_SIZE),
+      style: normalizeStyle(shapeElement.style),
+      layer: finiteOrDefault(shapeElement.layer, layerFallback),
     } as DrawingElement;
   }
 

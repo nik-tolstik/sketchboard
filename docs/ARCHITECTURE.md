@@ -86,10 +86,15 @@ Shared code must not import from app, pages, widgets, features, or entities.
 - Select tool supports click selection, Shift-click additive toggling, area selection, and dragging selected elements.
 - A single selected rectangle, diamond, ellipse, or text element exposes eight canvas resize handles. Resize previews are transient and the committed resize creates one undo entry; multi-selection does not resize.
 - Object settings appear for drawing tools and selected elements, using preset stroke/fill swatches, including transparent presets, stroke-width presets, and border-radius presets for rectangles and diamonds; selected elements also show layer controls in the same left panel.
+- Right-clicking the canvas or using a touchpad secondary click opens an editor context menu. A click on the current selection preserves the full selection, a click on another object selects that object, and a click on empty canvas clears selection.
 - `Ctrl+C` copies selected elements into an in-memory clipboard.
+- `Ctrl+X` cuts selected elements into the same in-memory clipboard as one undoable removal.
 - `Ctrl+V` pastes copies at the last cursor world position.
+- The context menu exposes copy, cut, paste, delete, clear-scene, and layer-order actions. Paste uses the context-menu position when that was the latest canvas pointer location.
 - `Delete` and `Backspace` remove selected elements.
 - Text uses a temporary inline textarea positioned on the canvas. Committing creates a `text` element.
+- Rectangle, diamond, and ellipse elements store an optional embedded text label. Double-clicking a shape opens the same inline textarea over its centered text box; the label moves, resizes, copies, persists, and participates in history with its shape.
+- Shape labels wrap within the shape-specific inner text box, remain vertically centered when they fit, and reuse the shape stroke color, opacity, and text-alignment controls.
 - Text elements persist width and height. Horizontal resize reflows text, while vertical and corner resize scale the font and block; manual line breaks remain part of the original text value.
 - `Ctrl+Z` and `Ctrl+Shift+Z` undo/redo element changes.
 - Viewport pan and zoom changes do not create undo history entries.
